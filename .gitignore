@@ -1,0 +1,36 @@
+# Python caches and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local virtual environments
+.venv/
+venv/
+env/
+
+# Generated experiment data and figures
+data/
+fig/
+*.h5
+*.hdf5
+*.csv
+*.pdf
+*.png
+
+# Notebooks are exploratory artifacts in this repo.
+*.ipynb
+.ipynb_checkpoints/
+
+# Editor, assistant, and OS-local files
+.DS_Store
+.vscode/
+.idea/
+.claude/
