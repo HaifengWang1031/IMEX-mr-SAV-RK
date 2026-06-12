@@ -114,10 +114,22 @@ class IMEXTableau:
     Ahat: Array
     c: Array
     chat: Array
+    b_tilde: Optional[Array] = None
+    bhat_tilde: Optional[Array] = None
 
     @property
     def stages(self) -> int:
         return int(self.A.shape[0])
+
+    @property
+    def has_embedding(self) -> bool:
+        # True when the tableau carries explicit embedding coefficients
+        # (b_tilde, bhat_tilde), OR when there are enough stages for the
+        # generic linear-extrapolation embedding (s >= 3).
+        return (
+            (self.b_tilde is not None and self.bhat_tilde is not None)
+            or self.stages >= 3
+        )
 
     def time_of_stage(self, stage_index: int) -> float:
         """Return c_j for known stage j, where j=0 is the old solution."""
@@ -141,11 +153,67 @@ class NewtonInfo:
     iterations: int
     residual: float
 
+
+@dataclass(frozen=True)
+class PIAdaptiveOptions:
+    """Parameters for the PI step-size controller with embedded error estimation.
+
+    The controller selects the next step size as
+
+        dt_new = dt * safety * (tol / err)^k_I * (err_prev / err)^k_P
+
+    where err is the L2 error in vorticity between the main and embedded
+    solutions, and err_prev is the error of the previous accepted step.
+
+    Theoretical PI gains for order-p embedding: k_I = 0.4 / (p+1),
+    k_P = 0.3 / (p+1).  Defaults are set for p=2 (the linear-extrapolation
+    embedding used by RK3 and RK4).  For ARS222 (p=1), pass k_I=0.15, k_P=0.20
+    or k_I=0.2, k_P=0.1.
+
+    Parameters
+    ----------
+    tol:
+        Target absolute L2 error tolerance on omega.
+    safety:
+        Safety factor (< 1) to avoid over-optimistic steps (default 0.9).
+    k_I:
+        Integral gain (default 0.133 = 0.4 / 3 for p=2 embedding).
+    k_P:
+        Proportional gain (default 0.1 = 0.3 / 3 for p=2 embedding).
+    dt_min:
+        Minimum allowed step size (default 0.0, i.e. no floor).
+    dt_max:
+        Maximum allowed step size (default inf, i.e. no ceiling).
+    max_increase_factor:
+        Limit on dt_new / dt_old for an accepted step (default 3.0).
+    max_decrease_factor:
+        Limit on dt_new / dt_old for a rejected step (default 5.0).
+    max_rejections:
+        Maximum number of consecutive rejections before raising an error
+        (default 20).
+    max_steps:
+        Hard cap on total attempted steps to prevent infinite loops
+        (default 100000).
+    """
+
+    tol: float = 1.0e-6
+    safety: float = 0.9
+    k_I: float = 0.133
+    k_P: float = 0.1
+    dt_min: float = 0.0
+    dt_max: float = float("inf")
+    max_increase_factor: float = 3.0
+    max_decrease_factor: float = 5.0
+    max_rejections: int = 20
+    max_steps: int = 100000
+
 @dataclass
 class StepDiagnostics:
     q_newton: Tuple[NewtonInfo, ...]
     max_newton_iterations: int
     mean_vorticity: float
+    omega_embed: Optional[Array] = None
+    q_embed: Optional[float] = None
 
 @dataclass
 class SolverResult:
@@ -159,6 +227,70 @@ class SolverResult:
     cpu_time: Array
     method: str
     dt: float
+    omega_embed: Optional[Array] = None
+    q_embed: Optional[float] = None
+
+
+@dataclass
+class AdaptiveSolverResult:
+    """Complete result of an adaptive solve with PI step-size control.
+
+    Attributes
+    ----------
+    t:
+        Saved output times (including t0).
+    omega:
+        Vorticity snapshots at each output time, shape (n_outputs, ny, nx),
+        or None when keep_omega is False.
+    energy, enstrophy, palinstrophy:
+        Energy diagnostics at each output time (n_outputs entries).
+    max_vorticity:
+        Maximum absolute vorticity at each output time.
+    cpu_time:
+        Cumulative wall-clock time after each output save.
+    method:
+        Name of the tableau used.
+    initial_dt:
+        Starting step size provided by the user.
+    accepted_steps:
+        Total number of accepted steps.
+    rejected_steps:
+        Total number of rejected (retried) steps.
+    dt_history:
+        Array of dt values used for each accepted step, length n_accepted.
+    error_history:
+        Array of error estimates for each accepted step, length n_accepted.
+    t_history:
+        Simulation time after each accepted step, length n_accepted.
+    step_cpu_times:
+        Wall-clock time spent on each attempted step (accepted or rejected),
+        length n_accepted + n_rejected.
+    step_accepted_mask:
+        Boolean array parallel to step_cpu_times indicating acceptance.
+    omega_final:
+        Final vorticity field.
+    q_final:
+        Final scalar SAV value.
+    """
+
+    t: Array
+    omega: Optional[Array]
+    energy: Array
+    enstrophy: Array
+    palinstrophy: Array
+    max_vorticity: Array
+    cpu_time: Array
+    method: str
+    initial_dt: float
+    accepted_steps: int
+    rejected_steps: int
+    dt_history: Array
+    error_history: Array
+    t_history: Array
+    step_cpu_times: Array
+    step_accepted_mask: Array
+    omega_final: Array
+    q_final: float
 
 
 def make_periodic_ops(
@@ -270,6 +402,8 @@ def _validate_tableau(tableau: IMEXTableau) -> IMEXTableau:
         Ahat=Ahat,
         c=c.astype(np.float64),
         chat=chat.astype(np.float64),
+        b_tilde=tableau.b_tilde,
+        bhat_tilde=tableau.bhat_tilde,
     )
 
 
@@ -281,17 +415,13 @@ def make_tableau(method: str) -> IMEXTableau:
     rk1, imex-mrsav-rk1:
         One-stage first-order IMEX Euler.
     rk2, imex-mrsav-rk2:
-        Second-order IMEX scheme with c2=0.3.  The zero first row of the
-        standard Butcher tableau is represented by the known value omega_n,
-        so only the two nontrivial output stages are stored here.
+        Second-order IMEX scheme with c2=0.3.
+    ars222, imex-mrsav-ars222:
+        Second-order IMEX ARS(2,2,2) with built-in first-order embedding.
     rk3, imex-mrsav-rk3:
-        Third-order IMEX scheme with a55=1.  The zero first row of the
-        standard Butcher tableau is represented by the known value omega_n,
-        so only the four nontrivial output stages are stored here.
+        Third-order IMEX scheme (a55=1) with linear-extrapolation embedding.
     rk4, imex-mrsav-rk4:
-        Fourth-order IMEX scheme with ahat43=1.  As above, the zero first row
-        of the standard Butcher tableau is represented by omega_n, so only
-        the six nontrivial output stages are stored here.
+        Fourth-order IMEX scheme (ahat43=1) with linear-extrapolation embedding.
     """
     key = method.lower().replace("_", "-")
     if key in {"rk1", "imex-rk1", "imex-mrsav-rk1"}:
@@ -321,6 +451,35 @@ def make_tableau(method: str) -> IMEXTableau:
         )
         return _validate_tableau(IMEXTableau("imex-mrsav-rk2", 2, A, Ahat, A.sum(1), Ahat.sum(1)))
 
+    if key in {"ars222", "imex-ars222", "imex-mrsav-ars222"}:
+        # ARS(2,2,2) from Ascher-Ruuth-Spiteri (1997).
+        # gamma = 1 - 1/sqrt(2),  delta = 1 - 1/(2*gamma) = -1/sqrt(2).
+        gam = 1.0 - 1.0 / np.sqrt(2.0)
+        dlt = 1.0 - 0.5 / gam  # = -1/sqrt(2)
+        A = np.array(
+            [
+                [gam, 0.0],
+                [1.0 - gam, gam],
+            ],
+            dtype=np.float64,
+        )
+        Ahat = np.array(
+            [
+                [gam, 0.0],
+                [dlt, 1.0 - dlt],
+            ],
+            dtype=np.float64,
+        )
+        # Embedded first-order weights — use the first nontrivial stage (c=gamma).
+        # b_tilde[j] for j=0..s-1 weights Δω^(j+1); only the first stage contributes.
+        b_tilde = np.array([1.0, 0.0], dtype=np.float64)
+        # bhat_tilde[0] weights f(t_n),N(ω_n); bhat_tilde[1] weights first-stage explicit RHS.
+        bhat_tilde = np.array([0.0, 1.0, 0.0], dtype=np.float64)
+        return _validate_tableau(
+            IMEXTableau("imex-mrsav-ars222", 2, A, Ahat, A.sum(1), Ahat.sum(1),
+                        b_tilde=b_tilde, bhat_tilde=bhat_tilde)
+        )
+
     if key in {"rk3", "imex-rk3", "imex-mrsav-rk3"}:
         a55 = 1.0
         a52 = -2.0 * (36.0 * a55 - 5.0) / 147.0
@@ -348,7 +507,14 @@ def make_tableau(method: str) -> IMEXTableau:
             ],
             dtype=np.float64,
         )
-        return _validate_tableau(IMEXTableau("imex-mrsav-rk3", 3, A, Ahat, A.sum(1), Ahat.sum(1)))
+        # ── Interpolation embedding (linear extrapolation, 2nd-order) ──
+        # For stiffly accurate tableaux (c_s = 1), the two stage values
+        # with c closest to 1 are linearly extrapolated to t_{n+1}.
+        # This gives a cheap O(dt^2) embedded solution (no extra solves).
+        # The weights are auto-computed in step_imex_mrsav_rk.
+        return _validate_tableau(IMEXTableau(
+            "imex-mrsav-rk3", 3, A, Ahat, A.sum(1), Ahat.sum(1),
+        ))
 
     if key in {"rk4", "imex-rk4", "imex-mrsav-rk4"}:
         ahat43 = 1.0
@@ -431,7 +597,7 @@ def make_tableau(method: str) -> IMEXTableau:
         )
         return _validate_tableau(IMEXTableau("imex-mrsav-rk4", 4, A, Ahat, A.sum(1), Ahat.sum(1)))
 
-    raise ValueError("unknown method {!r}; use rk1, rk2, rk3, or rk4".format(method))
+    raise ValueError("unknown method {!r}; use rk1, rk2, rk3, rk4, or ars222".format(method))
 
 
 def make_taylor_v(order: int) -> Tuple[ScalarFn, ScalarFn]:
@@ -573,8 +739,11 @@ def _force_value(ops: PeriodicOps, force: Optional[ForceFn], t: float) -> Array:
     return value
 
 
-def _linear_combination(arrays: Iterable[Array], coeffs: Array, shape: Tuple[int, int]) -> Array:
-    out = np.zeros(shape, dtype=np.float64)
+def _linear_combination(arrays: Iterable[Array], coeffs: Array) -> Array:
+    arrays = list(arrays)
+    if not arrays:
+        raise ValueError("_linear_combination requires at least one array")
+    out = np.zeros_like(arrays[0])
     for coef, arr in zip(coeffs, arrays):
         if coef != 0.0:
             out += float(coef) * arr
@@ -670,10 +839,6 @@ def newton_solve_q(
     return q, NewtonInfo(False, options.max_iter, abs(residual))
 
 
-def recover_stage(phi: Array, z: Array, scale: float) -> Array:
-    return phi - scale * z
-
-
 def step_imex_mrsav_rk(
     omega_n: Array,
     q_n: float,
@@ -716,8 +881,8 @@ def step_imex_mrsav_rk(
         a_known = tableau.A[stage, :stage]
         a_diag = float(tableau.A[stage, stage])
 
-        Fhat_phys = _linear_combination(force_stages[:known_count], ahat, shape)
-        Nhat_phys = _linear_combination(N_stages[:known_count], ahat, shape)
+        Fhat_phys = _linear_combination(force_stages[:known_count], ahat)
+        Nhat_phys = _linear_combination(N_stages[:known_count], ahat)
         Fhat_hat = ops.fft2(Fhat_phys)
         Nhat_hat = ops.fft2(Nhat_phys)
 
@@ -758,15 +923,116 @@ def step_imex_mrsav_rk(
         omega_stages.append(omega_i)
         omega_hat_stages.append(omega_hat_i)
         q_stages.append(float(q_i))
+
         if stage < s - 1:
             N_stages.append(advection_term(ops, omega_i, omega_hat=omega_hat_i))
 
     omega_np1 = omega_stages[-1]
     q_np1 = q_stages[-1]
+
+    omega_embed = None
+    q_embed = None
+    if tableau.b_tilde is not None and tableau.bhat_tilde is not None:
+        # --- embedded first-order solution ---
+        # b_tilde[j] weights Δω^(j+1) for j=0..s-1 (implicit stage contributions).
+        # bhat_tilde[0] weights the explicit RHS at t_n (N(ω_n), force(t_n));
+        # bhat_tilde[j+1] weights the explicit RHS at stage j (force_stages[j], N_stages[j+1]).
+        b_tilde = np.asarray(tableau.b_tilde, dtype=np.float64)
+        bhat_full = np.asarray(tableau.bhat_tilde, dtype=np.float64)
+        if len(bhat_full) != s + 1:
+            raise ValueError(
+                f"embedded bhat_tilde must have length s+1={s+1}, got {len(bhat_full)}"
+            )
+
+        # Implicit contribution: Σ b_tilde[j] * Lap * ω^(j+1) in Fourier space.
+        delta_omega_embed = np.zeros_like(omega_hat_stages[0])
+        for j in range(s):
+            coeff = float(b_tilde[j])
+            if coeff != 0.0:
+                delta_omega_embed += coeff * laplacian_hat(ops, omega_hat_stages[j + 1])
+
+        # Explicit contributions — include the trivial stage at t_n (index 0 in bhat_full).
+        # Force: force(t_n) weighted by bhat_full[0], plus stage forces weighted by bhat_full[1:].
+        f0 = float(bhat_full[0])
+        if f0 != 0.0:
+            F_embed = f0 * _force_value(ops, force, t_n)
+        else:
+            F_embed = np.zeros(shape, dtype=np.float64)
+        if s > 0:
+            F_embed += _linear_combination(force_stages, bhat_full[1:])
+
+        # Advection: N(ω_n) weighted by bhat_full[0], plus stage N values weighted by bhat_full[1:].
+        N_embed = f0 * N_stages[0] if f0 != 0.0 else np.zeros(shape, dtype=np.float64)
+        if s > 0:
+            N_embed += _linear_combination(N_stages[1:], bhat_full[1:])
+        N_embed_hat = ops.fft2(N_embed)
+
+        # RHS for ω (no implicit diagonal → no Helmholtz solve).
+        Rw_embed_hat = (np.array(omega_hat_stages[0], copy=True)
+                        + nu * dt * delta_omega_embed
+                        + dt * ops.fft2(F_embed))
+        if project_mean:
+            Rw_embed_hat[0, 0] = 0.0
+
+        # RHS for q.
+        q_embed_known = 0.0
+        for j in range(s):
+            q_embed_known += float(b_tilde[j]) * float(q_stages[j + 1])
+        Rq_embed = (float(q_n) - gamma * dt * q_embed_known
+                    + gamma * dt * float(np.sum(bhat_full)))
+
+        # Newton solve for q_embed (m = 1 since no implicit diagonal).
+        A_embed = inner_product(ops, N_embed, ops.ifft2(Rw_embed_hat).real)
+        B_embed = inner_product(ops, N_embed, N_embed)
+        q_embed, q_embed_info = newton_solve_q(
+            1.0, Rq_embed, dt, A_embed, B_embed, V, dV, q_n, newton_options,
+        )
+
+        scale_embed = dt * q_embed * V(q_embed)
+        omega_embed_hat = Rw_embed_hat - scale_embed * N_embed_hat
+        omega_embed = ops.ifft2(omega_embed_hat).real
+        omega_embed_hat[0, 0] = 0.0
+
+    # ── Interpolation-based 2nd-order embedding (linear extrapolation) ───
+    # For tableaux where the last stage time c_s = 1 (stiffly accurate),
+    # we can construct a 2nd-order embedded solution by linear extrapolation
+    # of the two stage values with c closest to (but not equal to) 1.
+    # This is cheaper than the b_tilde/bhat_tilde approach (no extra solves)
+    # and gives clean O(dt^2) error for error estimation.
+    omega_embed_interp = None
+    q_embed_interp = None
+    if s >= 3:
+        c_vals = np.concatenate([[0.0], tableau.c])
+        # Collect distinct c values < 1, keeping the LATEST stage index for each
+        # (later stages typically have higher stage order).
+        # Round to avoid splitting near-identical c values from finite-precision
+        # rational coefficients.
+        unique_c: dict[int, int] = {}  # key = rounded c * 1e12 (for dedup)
+        for i, ci in enumerate(c_vals):
+            if 0.0 < ci < 1.0 - 1e-14:
+                key = int(np.round(ci * 1e12))
+                unique_c[key] = i  # overwrite with later index
+        if len(unique_c) >= 2:
+            # Recover actual c values for the selected stages.
+            selected = [(i, float(c_vals[i])) for i in unique_c.values()]
+            selected.sort(key=lambda x: -x[1])  # descending by c
+            i2, c2 = selected[0]
+            i1, c1 = selected[1]
+            # Linear Lagrange extrapolation to c=1.
+            w1 = (1.0 - c2) / (c1 - c2)
+            w2 = (1.0 - c1) / (c2 - c1)
+            omega_embed_interp = w1 * omega_stages[i1] + w2 * omega_stages[i2]
+            q_embed_interp = float(w1 * q_stages[i1] + w2 * q_stages[i2])
+            # Override the b_tilde/bhat_tilde embedding with the interpolation one.
+            omega_embed = omega_embed_interp
+            q_embed = q_embed_interp
+
     diagnostics = StepDiagnostics(
         q_newton=tuple(q_infos),
         max_newton_iterations=max((info.iterations for info in q_infos), default=0),
         mean_vorticity=float(np.mean(omega_np1)),
+        omega_embed=omega_embed,
+        q_embed=float(q_embed) if q_embed is not None else None,
     )
     return omega_np1, q_np1, diagnostics
 
@@ -882,6 +1148,7 @@ def solve_fixed_step(
     denom_cache: Dict[Tuple[float, float], Array] = {}
     save_index = 1
     wall0 = perf_counter()
+    last_step_info = None
     for n in range(1, nsteps + 1):
         omega, q, step_info = step_imex_mrsav_rk(
             omega,
@@ -899,6 +1166,7 @@ def solve_fixed_step(
             denom_cache=denom_cache,
             project_mean=project_mean,
         )
+        last_step_info = step_info
         t = t0 + n * dt
         q_values[n] = q
         cpu_time[n] = perf_counter() - wall0
@@ -937,14 +1205,340 @@ def solve_fixed_step(
         cpu_time=cpu_time,
         method=tableau.name,
         dt=float(dt),
+        omega_embed=last_step_info.omega_embed if last_step_info is not None else None,
+        q_embed=last_step_info.q_embed if last_step_info is not None else None,
+    )
+
+
+# ── Adaptive solver helpers ────────────────────────────────────────────
+
+
+def _compute_error(
+    omega_main: Array,
+    omega_embed: Optional[Array],
+    ops: PeriodicOps,
+) -> float:
+    """L2 norm of the difference between main and embedded vorticity."""
+    if omega_embed is None:
+        return 0.0
+    diff = omega_main - omega_embed
+    return float(np.sqrt(inner_product(ops, diff, diff)))
+
+
+def _resolve_output_times(
+    t0: float,
+    tf: float,
+    output_times: Optional[Array],
+    output_interval: Optional[float],
+) -> Array:
+    """Build a sorted array of output times from user-specified options."""
+    if output_times is not None:
+        times = np.asarray(output_times, dtype=np.float64)
+        times = times[(times >= t0 - 1e-14) & (times <= tf + 1e-14)]
+        times = np.unique(times)
+        if len(times) == 0:
+            times = np.array([t0, tf], dtype=np.float64)
+        elif not np.isclose(times[0], t0):
+            times = np.concatenate([[t0], times])
+        if not np.isclose(times[-1], tf):
+            times = np.concatenate([times, [tf]])
+        return times
+    if output_interval is not None:
+        n = max(1, int(np.ceil((tf - t0) / output_interval)))
+        return np.linspace(t0, tf, n + 1, dtype=np.float64)
+    return np.array([t0, tf], dtype=np.float64)
+
+
+def _print_adaptive_progress(
+    t: float, tf: float, dt: float, err: float,
+    accepted: int, rejected: int, cpu: float,
+) -> None:
+    print(
+        "\rt={:.6f}/{:.6f}, dt={:.3e}, err={:.3e}, "
+        "acc={}, rej={}, CPU={:.2f}s".format(
+            t, tf, dt, err, accepted, rejected, cpu,
+        ),
+        end="",
+        flush=True,
+    )
+
+
+# ── Adaptive solver ────────────────────────────────────────────────────
+
+
+def solve_adaptive(
+    omega0: Array,
+    q0: float = 1.0,
+    *,
+    nu: float,
+    gamma: float,
+    domain: Tuple[float, float, float, float] = (0.0, 0.0, 2.0 * np.pi, 2.0 * np.pi),
+    discrete_num: Optional[Tuple[int, int]] = None,
+    dt0: float,
+    t_span: Tuple[float, float],
+    method: str = "ars222",
+    force: Optional[ForceFn] = None,
+    V: Optional[ScalarFn] = None,
+    dV: Optional[ScalarFn] = None,
+    keep_omega: bool = True,
+    project_mean: bool = True,
+    fftw_threads: Optional[int] = None,
+    newton_options: NewtonOptions = NewtonOptions(),
+    adaptive_options: PIAdaptiveOptions = PIAdaptiveOptions(),
+    output_times: Optional[Array] = None,
+    output_interval: Optional[float] = None,
+    print_progress: bool = False,
+) -> AdaptiveSolverResult:
+    """Solve the periodic 2D NSE vorticity equation with PI-adaptive time steps.
+
+    Uses the embedded solution from the IMEX tableau to estimate the local
+    error and a PI controller to select the next step size.
+
+    Parameters
+    ----------
+    dt0:
+        Initial time step.  The controller adjusts from here.
+    adaptive_options:
+        PI controller parameters (tolerance, gains, limits).
+    output_times:
+        Specific times at which to save snapshots.  If None and
+        output_interval is None, only t0 and tf are saved.
+    output_interval:
+        Regular interval for saving snapshots.
+
+    Returns
+    -------
+    AdaptiveSolverResult
+        Snapshots, per-step diagnostics, and final state.
+    """
+    # --- input validation ---
+    if dt0 <= 0.0:
+        raise ValueError("dt0 must be positive")
+    t0, tf = map(float, t_span)
+    if tf <= t0:
+        raise ValueError("t_span must satisfy tf > t0")
+
+    raw_omega0 = np.asarray(omega0, dtype=np.float64)
+    if discrete_num is None:
+        if raw_omega0.ndim != 2:
+            raise ValueError("omega0 must be two-dimensional")
+        ny0, nx0 = raw_omega0.shape
+        if ny0 > 1 and nx0 > 1 and np.allclose(raw_omega0[0, :], raw_omega0[-1, :]) and np.allclose(
+            raw_omega0[:, 0], raw_omega0[:, -1]
+        ):
+            discrete_num = (nx0 - 1, ny0 - 1)
+        else:
+            discrete_num = (nx0, ny0)
+
+    ops = make_periodic_ops(domain, discrete_num, fftw_threads)
+    omega = prepare_initial_vorticity(raw_omega0, ops, project_mean=project_mean)
+    q = float(q0)
+
+    tableau = make_tableau(method)
+    if not tableau.has_embedding:
+        raise ValueError(
+            f"adaptive solve requires a tableau with embedding; "
+            f"{tableau.name!r} does not have one.  Use ars222, rk3, or rk4."
+        )
+
+    if V is None or dV is None:
+        V, dV = make_taylor_v(tableau.order)
+
+    opts = adaptive_options
+
+    # --- resolve output times ---
+    output_times_arr = _resolve_output_times(t0, tf, output_times, output_interval)
+    n_outputs = len(output_times_arr)
+
+    # --- preallocate snapshot arrays ---
+    omega_saved = _allocate_snapshots(n_outputs, ops, keep_omega)
+    t_saved = np.empty(n_outputs, dtype=np.float64)
+
+    # --- initial snapshot ---
+    t_saved[0] = t0
+    if keep_omega:
+        omega_saved[0] = omega
+
+    # --- growing lists for per-step diagnostics ---
+    e0, ens0, pal0 = vorticity_energy(ops, omega)
+    energy_list = [float(e0)]
+    enstrophy_list = [float(ens0)]
+    palinstrophy_list = [float(pal0)]
+    max_vort_list = [float(np.max(np.abs(omega)))]
+    cpu_list = [0.0]
+    dt_hist: list[float] = []
+    err_hist: list[float] = []
+    t_hist: list[float] = []
+    step_cpu: list[float] = []
+    step_accepted: list[bool] = []
+
+    # --- main loop ---
+    t = t0
+    dt = float(dt0)
+    err_prev: Optional[float] = None
+    accepted = 0
+    rejected = 0
+    consecutive_rejections = 0
+    next_output_idx = 1
+    denom_cache: Dict[Tuple[float, float], Array] = {}
+    wall0 = perf_counter()
+
+    step_count = 0
+    while t < tf - 1e-14 * max(1.0, abs(tf)):
+        step_count += 1
+        if step_count > opts.max_steps:
+            raise RuntimeError(
+                f"Exceeded max_steps={opts.max_steps} at t={t:.6e}, "
+                f"dt={dt:.3e}"
+            )
+
+        # Clamp dt to not overshoot final time.
+        dt_trial = min(dt, tf - t)
+        if dt_trial < opts.dt_min:
+            raise RuntimeError(
+                f"Step size {dt_trial:.3e} fell below dt_min={opts.dt_min:.3e} "
+                f"at t={t:.6e}"
+            )
+
+        # --- take one step ---
+        wall_start = perf_counter()
+        omega_new, q_new, step_info = step_imex_mrsav_rk(
+            omega,
+            q,
+            t,
+            dt_trial,
+            ops,
+            nu,
+            gamma,
+            tableau,
+            force=force,
+            V=V,
+            dV=dV,
+            newton_options=newton_options,
+            denom_cache=denom_cache,
+            project_mean=project_mean,
+        )
+        wall_elapsed = perf_counter() - wall_start
+
+        # --- error estimate ---
+        err = _compute_error(omega_new, step_info.omega_embed, ops)
+        step_cpu.append(wall_elapsed)
+
+        # --- acceptance test ---
+        if err <= opts.tol:
+            # ACCEPT
+            omega = omega_new
+            q = q_new
+            t += dt_trial
+            accepted += 1
+            consecutive_rejections = 0
+            step_accepted.append(True)
+
+            dt_hist.append(dt_trial)
+            err_hist.append(err)
+            t_hist.append(t)
+
+            e_cur, ens_cur, pal_cur = vorticity_energy(ops, omega)
+            energy_list.append(e_cur)
+            enstrophy_list.append(ens_cur)
+            palinstrophy_list.append(pal_cur)
+            max_vort_list.append(float(np.max(np.abs(omega))))
+            cpu_list.append(perf_counter() - wall0)
+
+            # Check output times.
+            while (next_output_idx < n_outputs
+                   and t >= output_times_arr[next_output_idx] - 1e-14 * max(1.0, abs(tf))):
+                t_saved[next_output_idx] = output_times_arr[next_output_idx]
+                if keep_omega:
+                    omega_saved[next_output_idx] = omega
+                next_output_idx += 1
+
+            # --- PI step-size update (accepted) ---
+            if err_prev is not None and err_prev > 0.0 and err > 0.0:
+                dt_new = (
+                    dt_trial
+                    * opts.safety
+                    * (opts.tol / err) ** opts.k_I
+                    * (err_prev / err) ** opts.k_P
+                )
+            elif err > 0.0:
+                dt_new = (
+                    dt_trial * opts.safety * (opts.tol / err) ** opts.k_I
+                )
+            else:
+                dt_new = dt_trial * opts.max_increase_factor
+
+            dt_new = min(dt_new, opts.dt_max, opts.max_increase_factor * dt_trial)
+            dt_new = max(dt_new, opts.dt_min)
+            dt = dt_new
+            err_prev = err
+
+            if print_progress:
+                _print_adaptive_progress(t, tf, dt_trial, err, accepted, rejected, cpu_list[-1])
+        else:
+            # REJECT
+            rejected += 1
+            consecutive_rejections += 1
+            step_accepted.append(False)
+
+            if consecutive_rejections > opts.max_rejections:
+                raise RuntimeError(
+                    f"Exceeded max_rejections={opts.max_rejections} at t={t:.6e}, "
+                    f"dt={dt_trial:.3e}, err={err:.3e}"
+                )
+
+            # PI control for rejected step: use I-term only.
+            if err > 0.0:
+                dt_new = dt_trial * opts.safety * (opts.tol / err) ** opts.k_I
+            else:
+                dt_new = dt_trial
+            dt_new = max(dt_new, opts.dt_min, dt_trial / opts.max_decrease_factor)
+            dt = dt_new
+            # omega, q, t, err_prev remain unchanged.
+
+            if print_progress:
+                _print_adaptive_progress(t, tf, dt_trial, err, accepted, rejected, cpu_list[-1])
+
+    # --- end of main loop ---
+    if print_progress:
+        print()
+
+    # Fill remaining output snapshots.
+    while next_output_idx < n_outputs:
+        t_saved[next_output_idx] = output_times_arr[next_output_idx]
+        if keep_omega:
+            omega_saved[next_output_idx] = omega
+        next_output_idx += 1
+
+    return AdaptiveSolverResult(
+        t=t_saved[:next_output_idx],
+        omega=omega_saved[:next_output_idx] if keep_omega else None,
+        energy=np.array(energy_list, dtype=np.float64),
+        enstrophy=np.array(enstrophy_list, dtype=np.float64),
+        palinstrophy=np.array(palinstrophy_list, dtype=np.float64),
+        max_vorticity=np.array(max_vort_list, dtype=np.float64),
+        cpu_time=np.array(cpu_list, dtype=np.float64),
+        method=tableau.name,
+        initial_dt=float(dt0),
+        accepted_steps=accepted,
+        rejected_steps=rejected,
+        dt_history=np.array(dt_hist, dtype=np.float64),
+        error_history=np.array(err_hist, dtype=np.float64),
+        t_history=np.array(t_hist, dtype=np.float64),
+        step_cpu_times=np.array(step_cpu, dtype=np.float64),
+        step_accepted_mask=np.array(step_accepted, dtype=bool),
+        omega_final=omega,
+        q_final=float(q),
     )
 
 
 __all__ = [
+    "AdaptiveSolverResult",
     "HAS_FFTW",
     "IMEXTableau",
     "NewtonInfo",
     "NewtonOptions",
+    "PIAdaptiveOptions",
     "PeriodicOps",
     "SolverResult",
     "StepDiagnostics",
@@ -952,6 +1546,7 @@ __all__ = [
     "make_periodic_ops",
     "make_tableau",
     "make_taylor_v",
+    "solve_adaptive",
     "solve_fixed_step",
     "step_imex_mrsav_rk",
     "velocity_from_vorticity",
