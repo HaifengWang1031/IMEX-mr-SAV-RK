@@ -26,7 +26,6 @@ fig/
 *.png
 
 # Notebooks are exploratory artifacts in this repo.
-*.ipynb
 .ipynb_checkpoints/
 
 # Editor, assistant, and OS-local files
