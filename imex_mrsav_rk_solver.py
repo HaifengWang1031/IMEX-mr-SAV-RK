@@ -123,13 +123,7 @@ class IMEXTableau:
 
     @property
     def has_embedding(self) -> bool:
-        # True when the tableau carries explicit embedding coefficients
-        # (b_tilde, bhat_tilde), OR when there are enough stages for the
-        # generic linear-extrapolation embedding (s >= 3).
-        return (
-            (self.b_tilde is not None and self.bhat_tilde is not None)
-            or self.stages >= 3
-        )
+        return self.b_tilde is not None and self.bhat_tilde is not None
 
     def time_of_stage(self, stage_index: int) -> float:
         """Return c_j for known stage j, where j=0 is the old solution."""
@@ -166,9 +160,8 @@ class PIAdaptiveOptions:
     solutions, and err_prev is the error of the previous accepted step.
 
     Theoretical PI gains for order-p embedding: k_I = 0.4 / (p+1),
-    k_P = 0.3 / (p+1).  Defaults are set for p=2 (the linear-extrapolation
-    embedding used by RK3 and RK4).  For ARS222 (p=1), pass k_I=0.15, k_P=0.20
-    or k_I=0.2, k_P=0.1.
+    k_P = 0.3 / (p+1).  Defaults are set for p=2.  For first-order
+    embeddings, pass k_I=0.15, k_P=0.20 or k_I=0.2, k_P=0.1.
 
     Parameters
     ----------
@@ -238,16 +231,20 @@ class AdaptiveSolverResult:
     Attributes
     ----------
     t:
-        Saved output times (including t0).
+        Simulation times for all accepted states (including t0), length
+        n_accepted + 1.
+    t_snapshot:
+        Accepted-step times nearest to each requested output time
+        (including t0 and tf), length n_outputs.
     omega:
-        Vorticity snapshots at each output time, shape (n_outputs, ny, nx),
+        Vorticity snapshots at t_snapshot, shape (n_outputs, ny, nx),
         or None when keep_omega is False.
     energy, enstrophy, palinstrophy:
-        Energy diagnostics at each output time (n_outputs entries).
+        Energy diagnostics at all accepted states (n_accepted + 1 entries).
     max_vorticity:
-        Maximum absolute vorticity at each output time.
+        Maximum absolute vorticity at all accepted states.
     cpu_time:
-        Cumulative wall-clock time after each output save.
+        Cumulative wall-clock time at all accepted states.
     method:
         Name of the tableau used.
     initial_dt:
@@ -274,6 +271,7 @@ class AdaptiveSolverResult:
     """
 
     t: Array
+    t_snapshot: Array
     omega: Optional[Array]
     energy: Array
     enstrophy: Array
@@ -395,6 +393,18 @@ def _validate_tableau(tableau: IMEXTableau) -> IMEXTableau:
     if not np.allclose(c, chat, atol=1e-13, rtol=1e-13):
         raise ValueError(f"implicit and explicit stage times differ: {c} vs {chat}")
 
+    b_tilde = None
+    bhat_tilde = None
+    if tableau.b_tilde is not None or tableau.bhat_tilde is not None:
+        if tableau.b_tilde is None or tableau.bhat_tilde is None:
+            raise ValueError("embedded tableau requires both b_tilde and bhat_tilde")
+        b_tilde = np.asarray(tableau.b_tilde, dtype=np.float64)
+        bhat_tilde = np.asarray(tableau.bhat_tilde, dtype=np.float64)
+        if b_tilde.shape != (s + 1,):
+            raise ValueError(f"embedded b_tilde must have length s+1={s+1}, got {len(b_tilde)}")
+        if bhat_tilde.shape != (s + 1,):
+            raise ValueError(f"embedded bhat_tilde must have length s+1={s+1}, got {len(bhat_tilde)}")
+
     return IMEXTableau(
         name=tableau.name,
         order=int(tableau.order),
@@ -402,8 +412,8 @@ def _validate_tableau(tableau: IMEXTableau) -> IMEXTableau:
         Ahat=Ahat,
         c=c.astype(np.float64),
         chat=chat.astype(np.float64),
-        b_tilde=tableau.b_tilde,
-        bhat_tilde=tableau.bhat_tilde,
+        b_tilde=b_tilde,
+        bhat_tilde=bhat_tilde,
     )
 
 
@@ -415,13 +425,13 @@ def make_tableau(method: str) -> IMEXTableau:
     rk1, imex-mrsav-rk1:
         One-stage first-order IMEX Euler.
     rk2, imex-mrsav-rk2:
-        Second-order IMEX scheme with c2=0.3.
+        Second-order IMEX scheme with c2=0.25 and first-order embedding.
     ars222, imex-mrsav-ars222:
         Second-order IMEX ARS(2,2,2) with built-in first-order embedding.
     rk3, imex-mrsav-rk3:
-        Third-order IMEX scheme (a55=1) with linear-extrapolation embedding.
+        Third-order IMEX scheme (a55=1) with second-order embedding.
     rk4, imex-mrsav-rk4:
-        Fourth-order IMEX scheme (ahat43=1) with linear-extrapolation embedding.
+        Fourth-order IMEX scheme (ahat43=0) with third-order embedding.
     """
     key = method.lower().replace("_", "-")
     if key in {"rk1", "imex-rk1", "imex-mrsav-rk1"}:
@@ -430,7 +440,7 @@ def make_tableau(method: str) -> IMEXTableau:
         return _validate_tableau(IMEXTableau("imex-mrsav-rk1", 1, A, Ahat, A.sum(1), Ahat.sum(1)))
 
     if key in {"rk2", "imex-rk2", "imex-mrsav-rk2"}:
-        c2 = 0.3
+        c2 = 0.25
         b2 = 1.0 / (2.0 - 2.0 * c2)
         b3 = (1.0 - 2.0 * c2) / (2.0 - 2.0 * c2)
         bhat1 = 1.0 - 1.0 / (2.0 * c2)
@@ -449,7 +459,20 @@ def make_tableau(method: str) -> IMEXTableau:
             ],
             dtype=np.float64,
         )
-        return _validate_tableau(IMEXTableau("imex-mrsav-rk2", 2, A, Ahat, A.sum(1), Ahat.sum(1)))
+        b_tilde = np.array([1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0], dtype=np.float64)
+        bhat_tilde = np.array([1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0], dtype=np.float64)
+        return _validate_tableau(
+            IMEXTableau(
+                "imex-mrsav-rk2",
+                2,
+                A,
+                Ahat,
+                A.sum(1),
+                Ahat.sum(1),
+                b_tilde=b_tilde,
+                bhat_tilde=bhat_tilde,
+            )
+        )
 
     if key in {"ars222", "imex-ars222", "imex-mrsav-ars222"}:
         # ARS(2,2,2) from Ascher-Ruuth-Spiteri (1997).
@@ -470,10 +493,9 @@ def make_tableau(method: str) -> IMEXTableau:
             ],
             dtype=np.float64,
         )
-        # Embedded first-order weights — use the first nontrivial stage (c=gamma).
-        # b_tilde[j] for j=0..s-1 weights Δω^(j+1); only the first stage contributes.
-        b_tilde = np.array([1.0, 0.0], dtype=np.float64)
-        # bhat_tilde[0] weights f(t_n),N(ω_n); bhat_tilde[1] weights first-stage explicit RHS.
+        # Embedded first-order weights in the full RK convention, including
+        # the old-value column at index 0.
+        b_tilde = np.array([0.0, 1.0, 0.0], dtype=np.float64)
         bhat_tilde = np.array([0.0, 1.0, 0.0], dtype=np.float64)
         return _validate_tableau(
             IMEXTableau("imex-mrsav-ars222", 2, A, Ahat, A.sum(1), Ahat.sum(1),
@@ -507,17 +529,33 @@ def make_tableau(method: str) -> IMEXTableau:
             ],
             dtype=np.float64,
         )
-        # ── Interpolation embedding (linear extrapolation, 2nd-order) ──
-        # For stiffly accurate tableaux (c_s = 1), the two stage values
-        # with c closest to 1 are linearly extrapolated to t_{n+1}.
-        # This gives a cheap O(dt^2) embedded solution (no extra solves).
-        # The weights are auto-computed in step_imex_mrsav_rk.
+        b_tilde = np.array(
+            [
+                0.363636363636364,
+                0.12299465240641713,
+                0.24331550802139051,
+                0.14705882352941183,
+                0.12299465240641716,
+            ],
+            dtype=np.float64,
+        )
+        bhat_tilde = np.array(
+            [
+                0.36363636363636365,
+                0.12299465240641703,
+                0.24331550802139038,
+                0.1470588235294117,
+                0.12299465240641703,
+            ],
+            dtype=np.float64,
+        )
         return _validate_tableau(IMEXTableau(
             "imex-mrsav-rk3", 3, A, Ahat, A.sum(1), Ahat.sum(1),
+            b_tilde=b_tilde, bhat_tilde=bhat_tilde,
         ))
 
     if key in {"rk4", "imex-rk4", "imex-mrsav-rk4"}:
-        ahat43 = 1.0
+        ahat43 = 0.0
 
         a42 = -11099846794473413537.0 / 13545655559296875000.0
         a43 = 5938991227245191.0 / 56762747105625000.0
@@ -595,7 +633,42 @@ def make_tableau(method: str) -> IMEXTableau:
             ],
             dtype=np.float64,
         )
-        return _validate_tableau(IMEXTableau("imex-mrsav-rk4", 4, A, Ahat, A.sum(1), Ahat.sum(1)))
+        b_tilde = np.array(
+            [
+                0.3125147277911246,
+                0.014550065622639585,
+                -0.15483758769499406,
+                0.2222866434539917,
+                0.13802484605019127,
+                0.10833556156388786,
+                0.35912574321315943,
+            ],
+            dtype=np.float64,
+        )
+        bhat_tilde = np.array(
+            [
+                0.17527368414351605,
+                0.015799833361368275,
+                -0.22286606438003498,
+                0.4659276983375493,
+                -0.018784416790637255,
+                0.27684891051259536,
+                0.3078003548156437,
+            ],
+            dtype=np.float64,
+        )
+        return _validate_tableau(
+            IMEXTableau(
+                "imex-mrsav-rk4",
+                4,
+                A,
+                Ahat,
+                A.sum(1),
+                Ahat.sum(1),
+                b_tilde=b_tilde,
+                bhat_tilde=bhat_tilde,
+            )
+        )
 
     raise ValueError("unknown method {!r}; use rk1, rk2, rk3, rk4, or ars222".format(method))
 
@@ -868,8 +941,9 @@ def step_imex_mrsav_rk(
     omega_hat_stages = [omega_hat_0]
     N_stages = [advection_term(ops, omega_stages[0], omega_hat=omega_hat_0)]
 
+    force_stage_count = s + 1 if tableau.has_embedding else s
     force_stages = []
-    for j in range(s):
+    for j in range(force_stage_count):
         force_time = t_n + tableau.time_of_stage(j) * dt
         force_stages.append(_force_value(ops, force, force_time))
 
@@ -924,7 +998,7 @@ def step_imex_mrsav_rk(
         omega_hat_stages.append(omega_hat_i)
         q_stages.append(float(q_i))
 
-        if stage < s - 1:
+        if stage < s - 1 or tableau.has_embedding:
             N_stages.append(advection_term(ops, omega_i, omega_hat=omega_hat_i))
 
     omega_np1 = omega_stages[-1]
@@ -933,38 +1007,22 @@ def step_imex_mrsav_rk(
     omega_embed = None
     q_embed = None
     if tableau.b_tilde is not None and tableau.bhat_tilde is not None:
-        # --- embedded first-order solution ---
-        # b_tilde[j] weights Δω^(j+1) for j=0..s-1 (implicit stage contributions).
-        # bhat_tilde[0] weights the explicit RHS at t_n (N(ω_n), force(t_n));
-        # bhat_tilde[j+1] weights the explicit RHS at stage j (force_stages[j], N_stages[j+1]).
+        # Embedded RK output weights use the full convention: index 0 is the
+        # old value, and indices 1..s are the active stages.
         b_tilde = np.asarray(tableau.b_tilde, dtype=np.float64)
         bhat_full = np.asarray(tableau.bhat_tilde, dtype=np.float64)
-        if len(bhat_full) != s + 1:
-            raise ValueError(
-                f"embedded bhat_tilde must have length s+1={s+1}, got {len(bhat_full)}"
-            )
+        if len(b_tilde) != s + 1 or len(bhat_full) != s + 1:
+            raise ValueError("embedded weights must have length s+1")
 
-        # Implicit contribution: Σ b_tilde[j] * Lap * ω^(j+1) in Fourier space.
+        # Implicit contribution: Σ b_tilde[j] * Lap * ω^(j) in Fourier space.
         delta_omega_embed = np.zeros_like(omega_hat_stages[0])
-        for j in range(s):
+        for j in range(s + 1):
             coeff = float(b_tilde[j])
             if coeff != 0.0:
-                delta_omega_embed += coeff * laplacian_hat(ops, omega_hat_stages[j + 1])
+                delta_omega_embed += coeff * laplacian_hat(ops, omega_hat_stages[j])
 
-        # Explicit contributions — include the trivial stage at t_n (index 0 in bhat_full).
-        # Force: force(t_n) weighted by bhat_full[0], plus stage forces weighted by bhat_full[1:].
-        f0 = float(bhat_full[0])
-        if f0 != 0.0:
-            F_embed = f0 * _force_value(ops, force, t_n)
-        else:
-            F_embed = np.zeros(shape, dtype=np.float64)
-        if s > 0:
-            F_embed += _linear_combination(force_stages, bhat_full[1:])
-
-        # Advection: N(ω_n) weighted by bhat_full[0], plus stage N values weighted by bhat_full[1:].
-        N_embed = f0 * N_stages[0] if f0 != 0.0 else np.zeros(shape, dtype=np.float64)
-        if s > 0:
-            N_embed += _linear_combination(N_stages[1:], bhat_full[1:])
+        F_embed = _linear_combination(force_stages, bhat_full)
+        N_embed = _linear_combination(N_stages, bhat_full)
         N_embed_hat = ops.fft2(N_embed)
 
         # RHS for ω (no implicit diagonal → no Helmholtz solve).
@@ -976,8 +1034,8 @@ def step_imex_mrsav_rk(
 
         # RHS for q.
         q_embed_known = 0.0
-        for j in range(s):
-            q_embed_known += float(b_tilde[j]) * float(q_stages[j + 1])
+        for j in range(s + 1):
+            q_embed_known += float(b_tilde[j]) * float(q_stages[j])
         Rq_embed = (float(q_n) - gamma * dt * q_embed_known
                     + gamma * dt * float(np.sum(bhat_full)))
 
@@ -992,40 +1050,6 @@ def step_imex_mrsav_rk(
         omega_embed_hat = Rw_embed_hat - scale_embed * N_embed_hat
         omega_embed = ops.ifft2(omega_embed_hat).real
         omega_embed_hat[0, 0] = 0.0
-
-    # ── Interpolation-based 2nd-order embedding (linear extrapolation) ───
-    # For tableaux where the last stage time c_s = 1 (stiffly accurate),
-    # we can construct a 2nd-order embedded solution by linear extrapolation
-    # of the two stage values with c closest to (but not equal to) 1.
-    # This is cheaper than the b_tilde/bhat_tilde approach (no extra solves)
-    # and gives clean O(dt^2) error for error estimation.
-    omega_embed_interp = None
-    q_embed_interp = None
-    if s >= 3:
-        c_vals = np.concatenate([[0.0], tableau.c])
-        # Collect distinct c values < 1, keeping the LATEST stage index for each
-        # (later stages typically have higher stage order).
-        # Round to avoid splitting near-identical c values from finite-precision
-        # rational coefficients.
-        unique_c: dict[int, int] = {}  # key = rounded c * 1e12 (for dedup)
-        for i, ci in enumerate(c_vals):
-            if 0.0 < ci < 1.0 - 1e-14:
-                key = int(np.round(ci * 1e12))
-                unique_c[key] = i  # overwrite with later index
-        if len(unique_c) >= 2:
-            # Recover actual c values for the selected stages.
-            selected = [(i, float(c_vals[i])) for i in unique_c.values()]
-            selected.sort(key=lambda x: -x[1])  # descending by c
-            i2, c2 = selected[0]
-            i1, c1 = selected[1]
-            # Linear Lagrange extrapolation to c=1.
-            w1 = (1.0 - c2) / (c1 - c2)
-            w2 = (1.0 - c1) / (c2 - c1)
-            omega_embed_interp = w1 * omega_stages[i1] + w2 * omega_stages[i2]
-            q_embed_interp = float(w1 * q_stages[i1] + w2 * q_stages[i2])
-            # Override the b_tilde/bhat_tilde embedding with the interpolation one.
-            omega_embed = omega_embed_interp
-            q_embed = q_embed_interp
 
     diagnostics = StepDiagnostics(
         q_newton=tuple(q_infos),
@@ -1352,20 +1376,21 @@ def solve_adaptive(
 
     # --- preallocate snapshot arrays ---
     omega_saved = _allocate_snapshots(n_outputs, ops, keep_omega)
-    t_saved = np.empty(n_outputs, dtype=np.float64)
+    t_snapshot = np.empty(n_outputs, dtype=np.float64)
 
     # --- initial snapshot ---
-    t_saved[0] = t0
+    t_snapshot[0] = t0
     if keep_omega:
         omega_saved[0] = omega
 
     # --- growing lists for per-step diagnostics ---
     e0, ens0, pal0 = vorticity_energy(ops, omega)
+    t_all = [t0]
     energy_list = [float(e0)]
     enstrophy_list = [float(ens0)]
     palinstrophy_list = [float(pal0)]
-    max_vort_list = [float(np.max(np.abs(omega)))]
-    cpu_list = [0.0]
+    max_vorticity_list = [float(np.max(np.abs(omega)))]
+    cpu_time_list = [0.0]
     dt_hist: list[float] = []
     err_hist: list[float] = []
     t_hist: list[float] = []
@@ -1382,6 +1407,11 @@ def solve_adaptive(
     next_output_idx = 1
     denom_cache: Dict[Tuple[float, float], Array] = {}
     wall0 = perf_counter()
+    e_cur = float(e0)
+    ens_cur = float(ens0)
+    pal_cur = float(pal0)
+    max_vort_cur = float(np.max(np.abs(omega)))
+    cpu_cur = 0.0
 
     step_count = 0
     while t < tf - 1e-14 * max(1.0, abs(tf)):
@@ -1401,6 +1431,8 @@ def solve_adaptive(
             )
 
         # --- take one step ---
+        t_prev = t
+        omega_prev = omega
         wall_start = perf_counter()
         omega_new, q_new, step_info = step_imex_mrsav_rk(
             omega,
@@ -1437,20 +1469,31 @@ def solve_adaptive(
             dt_hist.append(dt_trial)
             err_hist.append(err)
             t_hist.append(t)
+            t_all.append(t)
 
             e_cur, ens_cur, pal_cur = vorticity_energy(ops, omega)
+            max_vort_cur = float(np.max(np.abs(omega)))
+            cpu_cur = perf_counter() - wall0
             energy_list.append(e_cur)
             enstrophy_list.append(ens_cur)
             palinstrophy_list.append(pal_cur)
-            max_vort_list.append(float(np.max(np.abs(omega))))
-            cpu_list.append(perf_counter() - wall0)
+            max_vorticity_list.append(max_vort_cur)
+            cpu_time_list.append(cpu_cur)
 
             # Check output times.
             while (next_output_idx < n_outputs
                    and t >= output_times_arr[next_output_idx] - 1e-14 * max(1.0, abs(tf))):
-                t_saved[next_output_idx] = output_times_arr[next_output_idx]
+                tau = output_times_arr[next_output_idx]
+                if abs(tau - t_prev) < abs(t - tau):
+                    t_snapshot[next_output_idx] = t_prev
+                    if keep_omega:
+                        omega_saved[next_output_idx] = omega_prev
+                else:
+                    t_snapshot[next_output_idx] = t
+                    if keep_omega:
+                        omega_saved[next_output_idx] = omega
                 if keep_omega:
-                    omega_saved[next_output_idx] = omega
+                    pass
                 next_output_idx += 1
 
             # --- PI step-size update (accepted) ---
@@ -1474,7 +1517,7 @@ def solve_adaptive(
             err_prev = err
 
             if print_progress:
-                _print_adaptive_progress(t, tf, dt_trial, err, accepted, rejected, cpu_list[-1])
+                _print_adaptive_progress(t, tf, dt_trial, err, accepted, rejected, cpu_cur)
         else:
             # REJECT
             rejected += 1
@@ -1497,7 +1540,7 @@ def solve_adaptive(
             # omega, q, t, err_prev remain unchanged.
 
             if print_progress:
-                _print_adaptive_progress(t, tf, dt_trial, err, accepted, rejected, cpu_list[-1])
+                _print_adaptive_progress(t, tf, dt_trial, err, accepted, rejected, cpu_cur)
 
     # --- end of main loop ---
     if print_progress:
@@ -1505,19 +1548,20 @@ def solve_adaptive(
 
     # Fill remaining output snapshots.
     while next_output_idx < n_outputs:
-        t_saved[next_output_idx] = output_times_arr[next_output_idx]
+        t_snapshot[next_output_idx] = t
         if keep_omega:
             omega_saved[next_output_idx] = omega
         next_output_idx += 1
 
     return AdaptiveSolverResult(
-        t=t_saved[:next_output_idx],
+        t=np.array(t_all, dtype=np.float64),
+        t_snapshot=t_snapshot[:next_output_idx],
         omega=omega_saved[:next_output_idx] if keep_omega else None,
         energy=np.array(energy_list, dtype=np.float64),
         enstrophy=np.array(enstrophy_list, dtype=np.float64),
         palinstrophy=np.array(palinstrophy_list, dtype=np.float64),
-        max_vorticity=np.array(max_vort_list, dtype=np.float64),
-        cpu_time=np.array(cpu_list, dtype=np.float64),
+        max_vorticity=np.array(max_vorticity_list, dtype=np.float64),
+        cpu_time=np.array(cpu_time_list, dtype=np.float64),
         method=tableau.name,
         initial_dt=float(dt0),
         accepted_steps=accepted,
