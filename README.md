@@ -54,21 +54,20 @@ result = solve_adaptive(
 | Key | Order | Embedding | Embed order | Adaptive |
 |-----|-------|-----------|-------------|----------|
 | `rk1` | 1 | none | — | no |
-| `rk2` | 2 | none | — | no |
+| `rk2` | 2 | embedded RK weights | 1 | yes |
 | `ars222` | 2 | b_tilde/bhat_tilde | 1 | yes |
-| `rk3` | 3 | linear extrapolation | 2 | yes |
-| `rk4` | 4 | linear extrapolation | 2 | yes |
+| `rk3` | 3 | embedded RK weights | 2 | yes |
+| `rk4` | 4 | embedded RK weights | 3 | yes |
 
 All methods accept case-insensitive keys: `"rk3"`, `"imex-rk3"`, `"imex-mrsav-rk3"`.
 
-## Embedding strategies
+## Embedded RK weights
 
-- **ARS222**: uses the first nontrivial stage as a 1st-order embedded solution
-  (Forward-Euler-like).  This costs one extra Newton solve per step.
-
-- **RK3 / RK4**: linear extrapolation of the two stage values with stage times
-  closest to (but not equal to) 1.  This costs **zero** extra solves — pure
-  arithmetic on already-computed arrays.  The embedded solution is 2nd-order.
+`rk2`, `rk3`, and `rk4` use coefficient-based embedded IMEX-RK outputs of
+orders 1, 2, and 3 respectively.  The old stage interpolation estimator has
+been removed, so adaptive stepping always uses the embedded RK weights carried
+by the tableau.  The embedded output costs one extra scalar Newton solve per
+accepted step.
 
 ## Adaptive step-size control
 
@@ -112,10 +111,10 @@ use `k_I=0.15, k_P=0.20`.
 
 - `imex_mrsav_rk_solver.py` — solver module
 - `test_ars222_convergence.py` — convergence test for ARS(2,2,2)
-- `test_gamma_embed_convergence.py` — convergence test for stage-extrapolation embedding (RK3/RK4)
+- `verify_embedded_rk_convergence.py` — manufactured-solution convergence check for embedded RK pairs
 
 ## Notes
 
 The solver uses `pyfftw` if installed; otherwise falls back to `scipy.fft`.
-Adding a new method only requires registering a new pair of matrices `A` and
-`Ahat` in `make_tableau` — the stage machinery and embedding are automatic.
+Adding a new adaptive method requires registering `A`, `Ahat`, `b_tilde`, and
+`bhat_tilde` in `make_tableau`.
