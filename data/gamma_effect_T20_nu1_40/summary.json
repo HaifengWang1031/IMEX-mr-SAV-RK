@@ -1,0 +1,88 @@
+{
+  "resolution": 128,
+  "nu": 0.025,
+  "forcing": "4 cos(4y)",
+  "gamma": [
+    0.0,
+    100.0,
+    1000.0,
+    1500.0,
+    2000.0
+  ],
+  "dt": 0.001,
+  "final_time": 20.0,
+  "reference_dt": 0.00025,
+  "sample_interval": 0.1,
+  "eta": 0.2928932188134524,
+  "q_less_than_one_threshold_gamma_dt": 1.4142135623730951,
+  "reference_step_halving_difference": 6.832790993649614e-12,
+  "resolution_check": {
+    "resolution": 256,
+    "final_time": 2.0,
+    "gamma_0_max_abs_r": 0.0081429,
+    "gamma_1000_max_abs_r": 0.0000057928,
+    "gamma_2000_max_abs_r": 0.0000030776
+  },
+  "runs": [
+    {
+      "gamma": 0.0,
+      "max_abs_r": 0.9238959276747962,
+      "max_abs_G_minus_one": 0.8535836851740723,
+      "max_newton_iterations": 2,
+      "failed": false,
+      "failure_time": null,
+      "cpu_seconds": 88.09076854214072,
+      "final_relative_omega_error": 2.1752562508226583,
+      "max_relative_omega_error": 2.466431412634113,
+      "max_relative_enstrophy_error": 5.752686054135226
+    },
+    {
+      "gamma": 100.0,
+      "max_abs_r": 0.019962206963764828,
+      "max_abs_G_minus_one": 0.000398489706864181,
+      "max_newton_iterations": 2,
+      "failed": false,
+      "failure_time": null,
+      "cpu_seconds": 65.47227758308873,
+      "final_relative_omega_error": 0.006227802789894282,
+      "max_relative_omega_error": 0.006227802789894282,
+      "max_relative_enstrophy_error": 0.001245433118371938
+    },
+    {
+      "gamma": 1000.0,
+      "max_abs_r": 0.0020951778326373516,
+      "max_abs_G_minus_one": 4.38977015037495e-06,
+      "max_newton_iterations": 2,
+      "failed": false,
+      "failure_time": null,
+      "cpu_seconds": 65.1136392080225,
+      "final_relative_omega_error": 7.62497318271226e-05,
+      "max_relative_omega_error": 7.62497318271226e-05,
+      "max_relative_enstrophy_error": 1.567822431585027e-05
+    },
+    {
+      "gamma": 1500.0,
+      "max_abs_r": 0.0014410313487086546,
+      "max_abs_G_minus_one": 2.076571347961084e-06,
+      "max_newton_iterations": 2,
+      "failed": false,
+      "failure_time": null,
+      "cpu_seconds": 65.29850416677073,
+      "final_relative_omega_error": 9.804220439334141e-05,
+      "max_relative_omega_error": 9.804220439334141e-05,
+      "max_relative_enstrophy_error": 1.2597184291166134e-05
+    },
+    {
+      "gamma": 2000.0,
+      "max_abs_r": 0.0011118348690816182,
+      "max_abs_G_minus_one": 1.236176776105739e-06,
+      "max_newton_iterations": 2,
+      "failed": false,
+      "failure_time": null,
+      "cpu_seconds": 66.14410408260301,
+      "final_relative_omega_error": 0.00010800588156367137,
+      "max_relative_omega_error": 0.00010800588156367137,
+      "max_relative_enstrophy_error": 1.1495138660261717e-05
+    }
+  ]
+}
