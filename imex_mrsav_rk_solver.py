@@ -21,6 +21,7 @@ from typing import Callable, Dict, Iterable, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
+import scipy.fft as scipy_fft
 
 try:
     import pyfftw
@@ -29,8 +30,6 @@ try:
     pyfftw.interfaces.cache.enable()
     HAS_FFTW = True
 except ImportError:  # pragma: no cover - SciPy fallback is for portability.
-    import scipy.fft as scipy_fft
-
     pyfftw = None
     fftw_fft = None
     HAS_FFTW = False
@@ -927,8 +926,16 @@ def step_imex_mrsav_rk(
     newton_options: NewtonOptions = NewtonOptions(),
     denom_cache: Optional[Dict[Tuple[float, float], Array]] = None,
     project_mean: bool = True,
+    freeze_auxiliary: bool = False,
 ) -> Tuple[Array, float, StepDiagnostics]:
-    """Advance one fixed-size IMEX-mr-SAV-RK step."""
+    """Advance one IMEX-mr-SAV-RK step.
+
+    When ``freeze_auxiliary`` is true, the scalar variable is fixed at
+    ``q=1`` (equivalently, ``r=0`` in the manuscript notation).  The
+    resulting update is the classical IMEX-SDIRK method with the same
+    Butcher tableau, and avoids the auxiliary scalar solve and its additional
+    Helmholtz solve.
+    """
     if V is None or dV is None:
         V, dV = make_taylor_v(tableau.order)
 
@@ -968,31 +975,36 @@ def step_imex_mrsav_rk(
         if project_mean:
             Rw_hat[0, 0] = 0.0
 
-        phi, phi_hat = helmholtz_solve_hat(ops, Rw_hat, nu, dt, a_diag, denom_cache, project_mean)
-        z, z_hat = helmholtz_solve_hat(ops, Nhat_hat, nu, dt, a_diag, denom_cache, project_mean=True)
+        if freeze_auxiliary:
+            Rw_hat -= dt * Nhat_hat
+            omega_i, omega_hat_i = helmholtz_solve_hat(
+                ops, Rw_hat, nu, dt, a_diag, denom_cache, project_mean,
+            )
+            q_i = 1.0
+        else:
+            phi, phi_hat = helmholtz_solve_hat(ops, Rw_hat, nu, dt, a_diag, denom_cache, project_mean)
+            z, z_hat = helmholtz_solve_hat(ops, Nhat_hat, nu, dt, a_diag, denom_cache, project_mean=True)
 
-        q_known = 0.0
-        for coeff, qj in zip(a_known, q_stages[1:known_count]):
-            q_known += float(coeff) * float(qj)
-        Rq = float(q_n) - gamma * dt * q_known + gamma * dt * float(tableau.chat[stage])
-        m = 1.0 + gamma * dt * a_diag
+            q_known = 0.0
+            for coeff, qj in zip(a_known, q_stages[1:known_count]):
+                q_known += float(coeff) * float(qj)
+            Rq = float(q_n) - gamma * dt * q_known + gamma * dt * float(tableau.chat[stage])
+            m = 1.0 + gamma * dt * a_diag
 
-        Acoef = inner_product(ops, Nhat_phys, phi)
-        Bcoef = inner_product(ops, Nhat_phys, z)
+            Acoef = inner_product(ops, Nhat_phys, phi)
+            Bcoef = inner_product(ops, Nhat_phys, z)
 
-        q_guess = q_stages[-1]
-        q_i, q_info = newton_solve_q(m, Rq, dt, Acoef, Bcoef, V, dV, q_guess, newton_options)
-        q_infos.append(q_info)
+            q_guess = q_stages[-1]
+            q_i, q_info = newton_solve_q(m, Rq, dt, Acoef, Bcoef, V, dV, q_guess, newton_options)
+            q_infos.append(q_info)
 
-        scale = dt * q_i * V(q_i)
-        # Reconstruct the stage directly in Fourier space (omega_i = phi -
-        # scale*z holds mode by mode), avoiding the forward/inverse FFT round
-        # trip of recover_stage + project_zero_mean + fft2.  The [0,0] mode is
-        # zeroed after the inverse transform, so omega_i keeps its mean when
-        # project_mean is False, matching the previous behaviour exactly.
-        omega_hat_i = phi_hat - scale * z_hat
-        omega_i = ops.ifft2(omega_hat_i).real
-        omega_hat_i[0, 0] = 0.0
+            scale = dt * q_i * V(q_i)
+            # Reconstruct the stage directly in Fourier space (omega_i = phi -
+            # scale*z holds mode by mode), avoiding the forward/inverse FFT round
+            # trip of recover_stage + project_zero_mean + fft2.
+            omega_hat_i = phi_hat - scale * z_hat
+            omega_i = ops.ifft2(omega_hat_i).real
+            omega_hat_i[0, 0] = 0.0
 
         omega_stages.append(omega_i)
         omega_hat_stages.append(omega_hat_i)
@@ -1006,7 +1018,7 @@ def step_imex_mrsav_rk(
 
     omega_embed = None
     q_embed = None
-    if tableau.b_tilde is not None and tableau.bhat_tilde is not None:
+    if not freeze_auxiliary and tableau.b_tilde is not None and tableau.bhat_tilde is not None:
         # Embedded RK output weights use the full convention: index 0 is the
         # old value, and indices 1..s are the active stages.
         b_tilde = np.asarray(tableau.b_tilde, dtype=np.float64)
@@ -1111,8 +1123,13 @@ def solve_fixed_step(
     fftw_threads: Optional[int] = None,
     newton_options: NewtonOptions = NewtonOptions(),
     print_progress: bool = False,
+    freeze_auxiliary: bool = False,
 ) -> SolverResult:
-    """Solve the periodic 2D NSE vorticity equation with fixed time steps."""
+    """Solve the periodic 2D NSE vorticity equation with fixed time steps.
+
+    Set ``freeze_auxiliary=True`` to run the classical counterpart with
+    ``r=0`` (and therefore ``q=1``) throughout the computation.
+    """
     if dt <= 0.0:
         raise ValueError("dt must be positive")
     if save_every <= 0:
@@ -1135,7 +1152,7 @@ def solve_fixed_step(
 
     ops = make_periodic_ops(domain, discrete_num, fftw_threads)
     omega = prepare_initial_vorticity(raw_omega0, ops, project_mean=project_mean)
-    q = float(q0)
+    q = 1.0 if freeze_auxiliary else float(q0)
     tableau = make_tableau(method)
     if V is None or dV is None:
         V, dV = make_taylor_v(tableau.order)
@@ -1189,6 +1206,7 @@ def solve_fixed_step(
             newton_options=newton_options,
             denom_cache=denom_cache,
             project_mean=project_mean,
+            freeze_auxiliary=freeze_auxiliary,
         )
         last_step_info = step_info
         t = t0 + n * dt
