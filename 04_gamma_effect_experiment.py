@@ -9,14 +9,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import time
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 
 import imex_mrsav_rk_solver as solver
@@ -49,21 +44,12 @@ def force(X: np.ndarray, Y: np.ndarray, t: float) -> np.ndarray:
     return FORCING_AMPLITUDE * np.cos(FORCING_WAVENUMBER * Y)
 
 
-def initial_streamfunction(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
-    psi = np.zeros_like(X, dtype=np.float64)
+def initial_vorticity(ops) -> np.ndarray:
+    omega = np.zeros_like(ops.X, dtype=np.float64)
     for k in range(1, INITIAL_MODE + 1):
         for m in range(1, INITIAL_MODE + 1):
-            coeff = 0.25 / (k * k + m * m) ** 1.5
-            psi += coeff * (np.cos(k * X) + np.sin(k * X)) * (
-                np.cos(m * Y) + np.sin(m * Y)
-            )
-    return psi
-
-
-def initial_vorticity(ops) -> np.ndarray:
-    psi_hat = ops.fft2(initial_streamfunction(ops.X, ops.Y))
-    omega_hat = -ops.Lap * psi_hat
-    return prepare_initial_vorticity(ops.ifft2(omega_hat).real, ops)
+            omega += np.cos(k * ops.X) * np.cos(m * ops.Y) / (k * k + m * m) ** 1.5
+    return prepare_initial_vorticity(omega, ops)
 
 
 def l2_norm(ops, value: np.ndarray) -> float:
@@ -199,7 +185,6 @@ def run_gamma(ops, omega0, gamma: float, tau: float, final_time: float, save_eve
         "r": r_saved,
         "enstrophy": enstrophy,
         "max_abs_r": float(np.max(np.abs(r_saved))),
-        "max_abs_G_minus_one": float(np.max(np.abs(r_saved) ** 2)),
         "max_newton_iterations": int(max_newton_iterations),
         "failed": failed,
         "failure_time": failure_time,
@@ -207,32 +192,10 @@ def run_gamma(ops, omega0, gamma: float, tau: float, final_time: float, save_eve
     }
 
 
-def make_figure(output: Path, runs, reference_times, reference_omega, reference_enstrophy):
-    fig, axes = plt.subplots(1, 3, figsize=(10.5, 3.0), constrained_layout=True)
-    colors = plt.cm.viridis(np.linspace(0.05, 0.9, len(runs)))
-    for color, run in zip(colors, runs):
-        label = rf"$\gamma={run['gamma']:g}$"
-        t = run["times"]
-        axes[0].semilogy(t, np.maximum(np.abs(run["r"]), 1e-16), color=color, label=label)
-        axes[1].semilogy(t, np.maximum(run["relative_omega_error"], 1e-16), color=color)
-        axes[2].semilogy(t, np.maximum(run["relative_enstrophy_error"], 1e-16), color=color)
-    axes[0].set_xlabel("$t$")
-    axes[0].set_ylabel(r"$|r^n|$")
-    axes[1].set_xlabel("$t$")
-    axes[1].set_ylabel(r"relative $L^2$ error")
-    axes[2].set_xlabel("$t$")
-    axes[2].set_ylabel(r"relative enstrophy error")
-    axes[0].legend(fontsize=7, frameon=False, ncol=2)
-    for ax in axes:
-        ax.grid(True, which="both", alpha=0.25)
-    fig.savefig(output, bbox_inches="tight")
-    plt.close(fig)
-
-
 def main() -> None:
     global NU, TAU, FINAL_TIME, REFERENCE_DT, SAMPLE_INTERVAL, GAMMAS
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--resolution", type=int, default=128)
+    parser.add_argument("--resolution", type=int, default=256)
     parser.add_argument("--nu", type=float, default=NU)
     parser.add_argument("--dt", type=float, default=TAU)
     parser.add_argument("--final-time", type=float, default=FINAL_TIME)
@@ -240,6 +203,7 @@ def main() -> None:
     parser.add_argument("--sample-interval", type=float, default=SAMPLE_INTERVAL)
     parser.add_argument("--gammas", type=float, nargs="+", default=GAMMAS)
     parser.add_argument("--threads", type=int, default=1)
+    parser.add_argument("--selected-times", type=float, nargs="+", default=(5.0, 10.0, 15.0, 20.0))
     parser.add_argument("--output-dir", type=Path, default=Path("data/gamma_effect"))
     args = parser.parse_args()
     NU = args.nu
@@ -248,6 +212,11 @@ def main() -> None:
     REFERENCE_DT = args.reference_dt
     SAMPLE_INTERVAL = args.sample_interval
     GAMMAS = tuple(args.gammas)
+    selected_times = tuple(
+        selected_time
+        for selected_time in args.selected_times
+        if 0.0 <= selected_time <= FINAL_TIME + 1.0e-12
+    )
     solver.HAS_FFTW = True
     ops = make_periodic_ops(DOMAIN, (args.resolution, args.resolution), fftw_threads=args.threads)
     omega0 = initial_vorticity(ops)
@@ -258,8 +227,6 @@ def main() -> None:
     ):
         raise ValueError("sample interval must be divisible by both time steps")
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    figure_dir = args.output_dir / "figures"
-    figure_dir.mkdir(parents=True, exist_ok=True)
 
     print("Computing ETDRK4 reference...", flush=True)
     reference_times, reference_omega, reference_enstrophy = etdrk4_trajectory(
@@ -298,26 +265,23 @@ def main() -> None:
             flush=True,
         )
 
-    make_figure(
-        figure_dir / "gamma_effect.pdf",
-        runs,
-        reference_times,
-        reference_omega,
-        reference_enstrophy,
+    gammas = np.asarray([run["gamma"] for run in runs], dtype=np.float64)
+    times = runs[0]["times"]
+    abs_r = np.stack([np.abs(run["r"]) for run in runs])
+    relative_omega_error = np.stack([run["relative_omega_error"] for run in runs])
+    enstrophy = np.stack([run["enstrophy"][: len(times)] for run in runs])
+    relative_enstrophy_error = np.stack(
+        [run["relative_enstrophy_error"] for run in runs]
     )
     np.savez_compressed(
         args.output_dir / "results.npz",
-        reference_times=reference_times,
-        reference_omega=reference_omega,
+        times=times,
+        gammas=gammas,
+        abs_r=abs_r,
+        relative_omega_error=relative_omega_error,
+        enstrophy=enstrophy,
+        relative_enstrophy_error=relative_enstrophy_error,
         reference_enstrophy=reference_enstrophy,
-        **{
-            f"gamma_{str(run['gamma']).replace('.', 'p')}_times": run["times"]
-            for run in runs
-        },
-        **{
-            f"gamma_{str(run['gamma']).replace('.', 'p')}_r": run["r"]
-            for run in runs
-        },
     )
     summary_runs = []
     for run in runs:
@@ -327,7 +291,6 @@ def main() -> None:
                 for key in (
                     "gamma",
                     "max_abs_r",
-                    "max_abs_G_minus_one",
                     "max_newton_iterations",
                     "failed",
                     "failure_time",
@@ -350,8 +313,26 @@ def main() -> None:
         "eta": 1.0 - np.sqrt(2.0) / 2.0,
         "q_less_than_one_threshold_gamma_dt": float(np.sqrt(2.0)),
         "reference_step_halving_difference": reference_half_check,
+        "selected_times": list(selected_times),
+        "selected_diagnostics": [],
         "runs": summary_runs,
     }
+    for selected_time in selected_times:
+        index = int(np.argmin(np.abs(times - selected_time)))
+        if not np.isclose(times[index], selected_time, rtol=0.0, atol=1e-12):
+            raise ValueError(f"selected time {selected_time} is not on the output grid")
+        for gamma_index, gamma in enumerate(gammas):
+            summary["selected_diagnostics"].append(
+                {
+                    "time": float(times[index]),
+                    "gamma": float(gamma),
+                    "abs_r": float(abs_r[gamma_index, index]),
+                    "relative_omega_error": float(relative_omega_error[gamma_index, index]),
+                    "relative_enstrophy_error": float(
+                        relative_enstrophy_error[gamma_index, index]
+                    ),
+                }
+            )
     (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"Wrote results to {args.output_dir}", flush=True)
 
