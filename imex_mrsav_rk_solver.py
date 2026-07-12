@@ -159,8 +159,8 @@ class PIAdaptiveOptions:
     solutions, and err_prev is the error of the previous accepted step.
 
     Theoretical PI gains for order-p embedding: k_I = 0.4 / (p+1),
-    k_P = 0.3 / (p+1).  Defaults are set for p=2.  For first-order
-    embeddings, pass k_I=0.15, k_P=0.20 or k_I=0.2, k_P=0.1.
+    k_P = 0.3 / (p+1).  When k_I or k_P is None (the default), solve_adaptive
+    infers the correct value from the tableau embedding order automatically.
 
     Parameters
     ----------
@@ -169,9 +169,9 @@ class PIAdaptiveOptions:
     safety:
         Safety factor (< 1) to avoid over-optimistic steps (default 0.9).
     k_I:
-        Integral gain (default 0.133 = 0.4 / 3 for p=2 embedding).
+        Integral gain.  None (default) lets solve_adaptive set 0.4/(p+1).
     k_P:
-        Proportional gain (default 0.1 = 0.3 / 3 for p=2 embedding).
+        Proportional gain.  None (default) lets solve_adaptive set 0.3/(p+1).
     dt_min:
         Minimum allowed step size (default 0.0, i.e. no floor).
     dt_max:
@@ -190,8 +190,8 @@ class PIAdaptiveOptions:
 
     tol: float = 1.0e-6
     safety: float = 0.9
-    k_I: float = 0.133
-    k_P: float = 0.1
+    k_I: Optional[float] = None
+    k_P: Optional[float] = None
     dt_min: float = 0.0
     dt_max: float = float("inf")
     max_increase_factor: float = 3.0
@@ -1318,7 +1318,7 @@ def solve_adaptive(
     discrete_num: Optional[Tuple[int, int]] = None,
     dt0: float,
     t_span: Tuple[float, float],
-    method: str = "ars222",
+    method: str = "rk2",
     force: Optional[ForceFn] = None,
     V: Optional[ScalarFn] = None,
     dV: Optional[ScalarFn] = None,
@@ -1387,6 +1387,10 @@ def solve_adaptive(
         V, dV = make_taylor_v(tableau.order)
 
     opts = adaptive_options
+    # Embedding order is one less than the main scheme order.
+    embed_order = tableau.order - 1
+    k_I = opts.k_I if opts.k_I is not None else 0.4 / (embed_order + 1)
+    k_P = opts.k_P if opts.k_P is not None else 0.3 / (embed_order + 1)
 
     # --- resolve output times ---
     output_times_arr = _resolve_output_times(t0, tf, output_times, output_interval)
@@ -1519,12 +1523,12 @@ def solve_adaptive(
                 dt_new = (
                     dt_trial
                     * opts.safety
-                    * (opts.tol / err) ** opts.k_I
-                    * (err_prev / err) ** opts.k_P
+                    * (opts.tol / err) ** k_I
+                    * (err_prev / err) ** k_P
                 )
             elif err > 0.0:
                 dt_new = (
-                    dt_trial * opts.safety * (opts.tol / err) ** opts.k_I
+                    dt_trial * opts.safety * (opts.tol / err) ** k_I
                 )
             else:
                 dt_new = dt_trial * opts.max_increase_factor
@@ -1550,7 +1554,7 @@ def solve_adaptive(
 
             # PI control for rejected step: use I-term only.
             if err > 0.0:
-                dt_new = dt_trial * opts.safety * (opts.tol / err) ** opts.k_I
+                dt_new = dt_trial * opts.safety * (opts.tol / err) ** k_I
             else:
                 dt_new = dt_trial
             dt_new = max(dt_new, opts.dt_min, dt_trial / opts.max_decrease_factor)
