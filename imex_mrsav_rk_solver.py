@@ -270,6 +270,7 @@ class AdaptiveSolverResult:
     """
 
     t: Array
+    q: Array
     t_snapshot: Array
     omega: Optional[Array]
     energy: Array
@@ -286,6 +287,125 @@ class AdaptiveSolverResult:
     t_history: Array
     step_cpu_times: Array
     step_accepted_mask: Array
+    omega_final: Array
+    q_final: float
+
+
+@dataclass(frozen=True)
+class ExtrapolationAdaptiveOptions:
+    """Options for the quadratic-extrapolation adaptive controller.
+
+    The controller follows the manuscript's error indicators
+
+        e_omega = ||omega_new - omega_ext|| /
+                  max(||omega_new||, ||omega_ext||),
+        e_r = |1 - q_new|,
+
+    and accepts a step only when both indicators are below their prescribed
+    tolerances.  The factor ``(tol_omega / e_omega)**(1/3)`` reflects the
+    third-order quadratic-extrapolation defect, while the auxiliary-variable
+    indicator uses a first-order scaling.  Once the trial step reaches
+    ``dt_min``, the step is accepted even if an indicator remains above
+    tolerance.
+    """
+
+    tol_omega: float = 5.5e-4
+    tol_r: float = 5.5e-4
+    safety: float = 0.9
+    dt_min: float = 1.0e-5
+    dt_max: float = 1.0e-2
+    max_rejections: int = 20
+    max_steps: int = 100000
+
+
+@dataclass
+class ExtrapolationAdaptiveSolverResult:
+    """Diagnostics returned by ``solve_adaptive_extrapolation``."""
+
+    t: Array
+    q: Array
+    omega: Optional[Array]
+    energy: Array
+    enstrophy: Array
+    palinstrophy: Array
+    max_vorticity: Array
+    cpu_time: Array
+    method: str
+    initial_dt: float
+    accepted_steps: int
+    rejected_steps: int
+    floor_accepted_steps: int
+    dt_history: Array
+    t_history: Array
+    error_omega_history: Array
+    error_r_history: Array
+    step_cpu_times: Array
+    step_accepted_mask: Array
+    t_snapshot: Array
+    omega_final: Array
+    q_final: float
+
+
+@dataclass(frozen=True)
+class ExtrapolationPIGammaOptions:
+    """Options for extrapolation-based PI control with adaptive mean reversion.
+
+    The extrapolation defect is O(dt**3), so the PI controller uses gains
+    scaled by the third-order estimator.  The mean-reversion parameter is
+    selected from the sufficient contraction condition in the manuscript,
+
+        sqrt(2) / (1 + eta * gamma * dt) = qbar < 1,
+
+    which gives gamma * dt = chi(qbar).
+    """
+
+    tol_omega: float = 1.0e-5
+    # Retained for reporting compatibility; the PI controller does not use
+    # this value and does not reject steps based on e_r.
+    tol_r: float = 5.0e-4
+    qbar: float = 0.80
+    safety: float = 0.9
+    k_I: float = 0.4 / 3.0
+    k_P: float = 0.3 / 3.0
+    dt_min: float = 1.0e-5
+    dt_max: float = 1.0e-2
+    min_step_factor: float = 0.2
+    max_step_factor: float = 2.0
+    max_rejections: int = 20
+    max_steps: int = 100000
+    error_floor: float = 1.0e-14
+
+
+@dataclass
+class ExtrapolationPIGammaSolverResult:
+    """Diagnostics returned by the adaptive extrapolation-PI-gamma solver."""
+
+    t: Array
+    q: Array
+    omega: Optional[Array]
+    energy: Array
+    enstrophy: Array
+    palinstrophy: Array
+    max_vorticity: Array
+    cpu_time: Array
+    method: str
+    initial_dt: float
+    qbar: float
+    chi_qbar: float
+    accepted_steps: int
+    rejected_steps: int
+    floor_accepted_steps: int
+    dt_history: Array
+    gamma_history: Array
+    gamma_dt_history: Array
+    damping_factor_history: Array
+    t_history: Array
+    error_omega_history: Array
+    error_r_history: Array
+    effective_error_history: Array
+    step_cpu_times: Array
+    step_accepted_mask: Array
+    t_snapshot: Array
     omega_final: Array
     q_final: float
 
@@ -1291,6 +1411,673 @@ def _resolve_output_times(
     return np.array([t0, tf], dtype=np.float64)
 
 
+def _quadratic_extrapolation(
+    omega_history: list[Array],
+    dt_history: list[float],
+) -> Array:
+    """Extrapolate the next vorticity value from the last three states."""
+    if len(omega_history) < 3 or len(dt_history) < 2:
+        raise ValueError("quadratic extrapolation needs three states and two previous steps")
+
+    tau_n = float(dt_history[-1])
+    tau_nm1 = float(dt_history[-2])
+    tau_nm2 = float(dt_history[-3]) if len(dt_history) >= 3 else tau_nm1
+    if min(tau_n, tau_nm1, tau_nm2) <= 0.0:
+        raise ValueError("time steps must be positive for quadratic extrapolation")
+
+    alpha0 = (
+        (tau_n + tau_nm1) * (tau_n + tau_nm1 + tau_nm2)
+        / (tau_nm1 * (tau_nm1 + tau_nm2))
+    )
+    alpha1 = -tau_n * (tau_n + tau_nm1 + tau_nm2) / (tau_nm1 * tau_nm2)
+    alpha2 = tau_n * (tau_n + tau_nm1) / (tau_nm2 * (tau_nm1 + tau_nm2))
+    return (
+        alpha0 * omega_history[-1]
+        + alpha1 * omega_history[-2]
+        + alpha2 * omega_history[-3]
+    )
+
+
+def _extrapolation_error_omega(
+    omega_new: Array,
+    omega_ext: Array,
+    ops: PeriodicOps,
+) -> float:
+    """Return the relative vorticity extrapolation defect."""
+    defect = float(np.sqrt(inner_product(ops, omega_new - omega_ext, omega_new - omega_ext)))
+    new_norm = float(np.sqrt(inner_product(ops, omega_new, omega_new)))
+    ext_norm = float(np.sqrt(inner_product(ops, omega_ext, omega_ext)))
+    denominator = max(new_norm, ext_norm)
+    if denominator <= np.finfo(float).tiny:
+        return defect
+    return defect / denominator
+
+
+def _extrapolation_step_update(
+    error_omega: float,
+    error_r: float,
+    dt: float,
+    options: ExtrapolationAdaptiveOptions,
+) -> float:
+    """Apply the manuscript's dual-indicator step-size update."""
+    if error_omega > 0.0:
+        omega_factor = (options.tol_omega / error_omega) ** (1.0 / 3.0)
+    else:
+        omega_factor = np.inf
+    if error_r > 0.0:
+        r_factor = options.tol_r / error_r
+    else:
+        r_factor = np.inf
+
+    factor = options.safety * min(omega_factor, r_factor)
+    if not np.isfinite(factor):
+        candidate = options.dt_max
+    else:
+        candidate = factor * dt
+    return float(np.clip(candidate, options.dt_min, options.dt_max))
+
+
+def _adaptive_gamma_parameters(qbar: float) -> Tuple[float, float]:
+    """Return eta and chi such that sqrt(2)/(1+eta*chi)=qbar."""
+    eta = 1.0 - np.sqrt(2.0) / 2.0
+    if not 0.0 < qbar < 1.0:
+        raise ValueError("qbar must lie strictly between zero and one")
+    chi = (np.sqrt(2.0) / qbar - 1.0) / eta
+    return float(eta), float(chi)
+
+
+def _extrapolation_pi_effective_error(
+    error_omega: float,
+    options: ExtrapolationPIGammaOptions,
+) -> float:
+    """Return the single normalized vorticity indicator used by PI control."""
+    omega_normalized = error_omega / options.tol_omega if error_omega > 0.0 else 0.0
+    effective = max(omega_normalized, options.error_floor)
+    return float(effective)
+
+
+def _extrapolation_pi_step_update(
+    error_omega: float,
+    previous_normalized_error: Optional[float],
+    dt: float,
+    options: ExtrapolationPIGammaOptions,
+) -> Tuple[float, float]:
+    """Return the next step and normalized vorticity PI error."""
+    normalized = _extrapolation_pi_effective_error(error_omega, options)
+    if previous_normalized_error is None:
+        factor = options.safety * normalized ** (-options.k_I)
+    else:
+        factor = (
+            options.safety
+            * normalized ** (-options.k_I)
+            * (previous_normalized_error / normalized) ** options.k_P
+        )
+    factor = float(
+        np.clip(factor, options.min_step_factor, options.max_step_factor)
+    )
+    candidate = float(np.clip(dt * factor, options.dt_min, options.dt_max))
+    return candidate, normalized
+
+
+def _extrapolation_pi_retry_step(
+    error_omega: float,
+    dt: float,
+    options: ExtrapolationPIGammaOptions,
+) -> float:
+    """Return a rejected-step retry size using only the vorticity estimator."""
+    effective = _extrapolation_pi_effective_error(error_omega, options)
+    factor = options.safety * effective ** (-1.0 / 3.0)
+    factor = float(np.clip(factor, options.min_step_factor, 1.0))
+    return float(np.clip(dt * factor, options.dt_min, options.dt_max))
+
+
+def solve_adaptive_extrapolation(
+    omega0: Array,
+    q0: float = 1.0,
+    *,
+    nu: float,
+    gamma: float,
+    domain: Tuple[float, float, float, float] = (0.0, 0.0, 2.0 * np.pi, 2.0 * np.pi),
+    discrete_num: Optional[Tuple[int, int]] = None,
+    dt0: float,
+    t_span: Tuple[float, float],
+    method: str = "ars222",
+    force: Optional[ForceFn] = None,
+    V: Optional[ScalarFn] = None,
+    dV: Optional[ScalarFn] = None,
+    keep_omega: bool = True,
+    project_mean: bool = True,
+    fftw_threads: Optional[int] = None,
+    newton_options: NewtonOptions = NewtonOptions(),
+    adaptive_options: ExtrapolationAdaptiveOptions = ExtrapolationAdaptiveOptions(),
+    output_times: Optional[Array] = None,
+    output_interval: Optional[float] = None,
+    print_progress: bool = False,
+) -> ExtrapolationAdaptiveSolverResult:
+    """Solve with the quadratic-extrapolation controller in the manuscript.
+
+    The first two accepted steps use the supplied initial step size.  Starting
+    with the third accepted step, the controller forms a nonuniform quadratic
+    extrapolation from the last three accepted vorticity states.  A trial step
+    is accepted only when both the relative vorticity defect and the
+    manuscript auxiliary-variable indicator ``abs(1-q)`` satisfy their
+    tolerances.  Requested output times are treated as hard landing points so
+    that reference errors can be compared without nearest-state interpolation.
+    """
+    if dt0 <= 0.0:
+        raise ValueError("dt0 must be positive")
+    t0, tf = map(float, t_span)
+    if tf <= t0:
+        raise ValueError("t_span must satisfy tf > t0")
+    opts = adaptive_options
+    if opts.tol_omega <= 0.0 or opts.tol_r <= 0.0:
+        raise ValueError("adaptive tolerances must be positive")
+    if not 0.0 < opts.safety < 1.0:
+        raise ValueError("safety must lie in (0, 1)")
+    if opts.dt_min <= 0.0 or opts.dt_max < opts.dt_min:
+        raise ValueError("adaptive step bounds are invalid")
+    if opts.max_rejections < 0 or opts.max_steps <= 0:
+        raise ValueError("adaptive iteration limits are invalid")
+
+    raw_omega0 = np.asarray(omega0, dtype=np.float64)
+    if discrete_num is None:
+        if raw_omega0.ndim != 2:
+            raise ValueError("omega0 must be two-dimensional")
+        ny0, nx0 = raw_omega0.shape
+        if ny0 > 1 and nx0 > 1 and np.allclose(raw_omega0[0, :], raw_omega0[-1, :]) and np.allclose(
+            raw_omega0[:, 0], raw_omega0[:, -1]
+        ):
+            discrete_num = (nx0 - 1, ny0 - 1)
+        else:
+            discrete_num = (nx0, ny0)
+
+    ops = make_periodic_ops(domain, discrete_num, fftw_threads)
+    omega = prepare_initial_vorticity(raw_omega0, ops, project_mean=project_mean)
+    q = float(q0)
+    tableau = make_tableau(method)
+    if V is None or dV is None:
+        V, dV = make_taylor_v(tableau.order)
+
+    output_times_arr = _resolve_output_times(t0, tf, output_times, output_interval)
+    n_outputs = len(output_times_arr)
+    omega_saved = _allocate_snapshots(n_outputs, ops, keep_omega)
+    t_snapshot = np.full(n_outputs, np.nan, dtype=np.float64)
+    t_snapshot[0] = t0
+    if keep_omega:
+        omega_saved[0] = omega
+    next_output_idx = 1
+
+    energy0, enstrophy0, palinstrophy0 = vorticity_energy(ops, omega)
+    t_all = [t0]
+    q_all = [q]
+    energy_all = [energy0]
+    enstrophy_all = [enstrophy0]
+    palinstrophy_all = [palinstrophy0]
+    max_vorticity_all = [float(np.max(np.abs(omega)))]
+    cpu_all = [0.0]
+    dt_history: list[float] = []
+    t_history: list[float] = []
+    error_omega_history: list[float] = []
+    error_r_history: list[float] = []
+    step_cpu_times: list[float] = []
+    step_accepted_mask: list[bool] = []
+    omega_history: list[Array] = [np.array(omega, copy=True)]
+    denom_cache: Dict[Tuple[float, float], Array] = {}
+
+    t = t0
+    dt = float(np.clip(dt0, opts.dt_min, opts.dt_max))
+    accepted = 0
+    rejected = 0
+    floor_accepted = 0
+    consecutive_rejections = 0
+    attempted = 0
+    wall0 = perf_counter()
+    tolerance_time = 1.0e-13 * max(1.0, abs(tf))
+
+    while t < tf - tolerance_time:
+        attempted += 1
+        if attempted > opts.max_steps:
+            raise RuntimeError(f"Exceeded max_steps={opts.max_steps} at t={t:.6e}, dt={dt:.3e}")
+
+        remaining = tf - t
+        dt_trial = min(dt, remaining)
+        if next_output_idx < n_outputs:
+            output_remaining = float(output_times_arr[next_output_idx] - t)
+            if output_remaining > tolerance_time:
+                if output_remaining < dt_trial:
+                    dt_trial = output_remaining
+        if dt_trial <= 0.0:
+            raise RuntimeError("non-positive trial step encountered")
+
+        wall_start = perf_counter()
+        omega_new, q_new, _ = step_imex_mrsav_rk(
+            omega,
+            q,
+            t,
+            dt_trial,
+            ops,
+            nu,
+            gamma,
+            tableau,
+            force=force,
+            V=V,
+            dV=dV,
+            newton_options=newton_options,
+            denom_cache=denom_cache,
+            project_mean=project_mean,
+        )
+        step_cpu_times.append(perf_counter() - wall_start)
+
+        has_extrapolation = accepted >= 2
+        if has_extrapolation:
+            omega_ext = _quadratic_extrapolation(
+                omega_history,
+                dt_history + [dt_trial],
+            )
+            error_omega = _extrapolation_error_omega(omega_new, omega_ext, ops)
+            error_r = abs(1.0 - float(q_new))
+            accept = error_omega <= opts.tol_omega
+            at_step_floor = dt_trial <= opts.dt_min
+            if not accept and at_step_floor:
+                accept = True
+                floor_accepted += 1
+        else:
+            error_omega = np.nan
+            error_r = np.nan
+            accept = True
+
+        if not accept:
+            rejected += 1
+            consecutive_rejections += 1
+            step_accepted_mask.append(False)
+            if consecutive_rejections > opts.max_rejections:
+                raise RuntimeError(
+                    f"Exceeded max_rejections={opts.max_rejections} at t={t:.6e}, "
+                    f"dt={dt_trial:.3e}, e_omega={error_omega:.3e}, e_r={error_r:.3e}"
+                )
+            dt_new = _extrapolation_step_update(error_omega, error_r, dt_trial, opts)
+            if dt_new >= dt_trial:
+                dt_new = max(opts.dt_min, 0.5 * dt_trial)
+            dt = dt_new
+            if print_progress:
+                _print_adaptive_progress(t, tf, dt_trial, error_omega, accepted, rejected, perf_counter() - wall0)
+            continue
+
+        accepted += 1
+        consecutive_rejections = 0
+        step_accepted_mask.append(True)
+        t_new = t + dt_trial
+        if next_output_idx < n_outputs and abs(t_new - output_times_arr[next_output_idx]) <= tolerance_time:
+            t_new = float(output_times_arr[next_output_idx])
+        if abs(t_new - tf) <= tolerance_time:
+            t_new = tf
+
+        omega = omega_new
+        q = float(q_new)
+        t = t_new
+        dt_history.append(float(dt_trial))
+        t_history.append(t)
+        error_omega_history.append(float(error_omega))
+        error_r_history.append(float(error_r))
+        t_all.append(t)
+        q_all.append(q)
+        energy, enstrophy, palinstrophy = vorticity_energy(ops, omega)
+        energy_all.append(energy)
+        enstrophy_all.append(enstrophy)
+        palinstrophy_all.append(palinstrophy)
+        max_vorticity_all.append(float(np.max(np.abs(omega))))
+        cpu_all.append(perf_counter() - wall0)
+        omega_history.append(np.array(omega, copy=True))
+        if len(omega_history) > 3:
+            omega_history.pop(0)
+
+        while next_output_idx < n_outputs and abs(t - output_times_arr[next_output_idx]) <= tolerance_time:
+            t_snapshot[next_output_idx] = t
+            if keep_omega:
+                omega_saved[next_output_idx] = omega
+            next_output_idx += 1
+
+        if accepted < 2:
+            dt = float(np.clip(dt0, opts.dt_min, opts.dt_max))
+        else:
+            dt = _extrapolation_step_update(error_omega, error_r, dt_trial, opts)
+        if print_progress:
+            _print_adaptive_progress(t, tf, dt_trial, error_omega, accepted, rejected, cpu_all[-1])
+
+    if next_output_idx != n_outputs:
+        raise RuntimeError(
+            f"adaptive solve ended without landing on all output times: "
+            f"filled {next_output_idx}/{n_outputs}"
+        )
+    if print_progress:
+        print()
+
+    return ExtrapolationAdaptiveSolverResult(
+        t=np.asarray(t_all, dtype=np.float64),
+        q=np.asarray(q_all, dtype=np.float64),
+        omega=omega_saved if keep_omega else None,
+        energy=np.asarray(energy_all, dtype=np.float64),
+        enstrophy=np.asarray(enstrophy_all, dtype=np.float64),
+        palinstrophy=np.asarray(palinstrophy_all, dtype=np.float64),
+        max_vorticity=np.asarray(max_vorticity_all, dtype=np.float64),
+        cpu_time=np.asarray(cpu_all, dtype=np.float64),
+        method=tableau.name,
+        initial_dt=float(dt0),
+        accepted_steps=accepted,
+        rejected_steps=rejected,
+        floor_accepted_steps=floor_accepted,
+        dt_history=np.asarray(dt_history, dtype=np.float64),
+        t_history=np.asarray(t_history, dtype=np.float64),
+        error_omega_history=np.asarray(error_omega_history, dtype=np.float64),
+        error_r_history=np.asarray(error_r_history, dtype=np.float64),
+        step_cpu_times=np.asarray(step_cpu_times, dtype=np.float64),
+        step_accepted_mask=np.asarray(step_accepted_mask, dtype=bool),
+        t_snapshot=t_snapshot,
+        omega_final=np.array(omega, copy=True),
+        q_final=float(q),
+    )
+
+
+def solve_adaptive_extrapolation_pi_gamma(
+    omega0: Array,
+    q0: float = 1.0,
+    *,
+    nu: float,
+    domain: Tuple[float, float, float, float] = (0.0, 0.0, 2.0 * np.pi, 2.0 * np.pi),
+    discrete_num: Optional[Tuple[int, int]] = None,
+    dt0: float,
+    t_span: Tuple[float, float],
+    method: str = "ars222",
+    force: Optional[ForceFn] = None,
+    V: Optional[ScalarFn] = None,
+    dV: Optional[ScalarFn] = None,
+    keep_omega: bool = True,
+    project_mean: bool = True,
+    fftw_threads: Optional[int] = None,
+    newton_options: NewtonOptions = NewtonOptions(),
+    adaptive_options: ExtrapolationPIGammaOptions = ExtrapolationPIGammaOptions(),
+    output_times: Optional[Array] = None,
+    output_interval: Optional[float] = None,
+    print_progress: bool = False,
+) -> ExtrapolationPIGammaSolverResult:
+    """Solve with extrapolation PI control and gamma*dt=qbar-dependent damping.
+
+    The trial mean-reversion parameter is recomputed for every trial step as
+
+        gamma_trial = chi(qbar) / dt_trial,
+
+    where ``sqrt(2)/(1+eta*chi(qbar)) == qbar < 1``.  The first two accepted
+    steps initialize the quadratic extrapolation history.  Once the history
+    is available, the vorticity extrapolation defect drives the PI controller,
+    while the auxiliary-variable defect is recorded for diagnostics only.
+    """
+    if dt0 <= 0.0:
+        raise ValueError("dt0 must be positive")
+    t0, tf = map(float, t_span)
+    if tf <= t0:
+        raise ValueError("t_span must satisfy tf > t0")
+    opts = adaptive_options
+    if opts.tol_omega <= 0.0 or opts.tol_r <= 0.0:
+        raise ValueError("adaptive tolerances must be positive")
+    if not 0.0 < opts.safety < 1.0:
+        raise ValueError("safety must lie in (0, 1)")
+    if not 0.0 < opts.min_step_factor <= 1.0:
+        raise ValueError("min_step_factor must lie in (0, 1]")
+    if opts.max_step_factor < 1.0:
+        raise ValueError("max_step_factor must be at least one")
+    if opts.dt_min <= 0.0 or opts.dt_max < opts.dt_min:
+        raise ValueError("adaptive step bounds are invalid")
+    if opts.max_rejections < 0 or opts.max_steps <= 0:
+        raise ValueError("adaptive iteration limits are invalid")
+    if opts.error_floor <= 0.0:
+        raise ValueError("error_floor must be positive")
+
+    eta, chi_qbar = _adaptive_gamma_parameters(opts.qbar)
+
+    raw_omega0 = np.asarray(omega0, dtype=np.float64)
+    if discrete_num is None:
+        if raw_omega0.ndim != 2:
+            raise ValueError("omega0 must be two-dimensional")
+        ny0, nx0 = raw_omega0.shape
+        if (
+            ny0 > 1
+            and nx0 > 1
+            and np.allclose(raw_omega0[0, :], raw_omega0[-1, :])
+            and np.allclose(raw_omega0[:, 0], raw_omega0[:, -1])
+        ):
+            discrete_num = (nx0 - 1, ny0 - 1)
+        else:
+            discrete_num = (nx0, ny0)
+
+    ops = make_periodic_ops(domain, discrete_num, fftw_threads)
+    omega = prepare_initial_vorticity(raw_omega0, ops, project_mean=project_mean)
+    q = float(q0)
+    tableau = make_tableau(method)
+    if V is None or dV is None:
+        V, dV = make_taylor_v(tableau.order)
+
+    output_times_arr = _resolve_output_times(t0, tf, output_times, output_interval)
+    n_outputs = len(output_times_arr)
+    omega_saved = _allocate_snapshots(n_outputs, ops, keep_omega)
+    t_snapshot = np.full(n_outputs, np.nan, dtype=np.float64)
+    t_snapshot[0] = t0
+    if keep_omega:
+        omega_saved[0] = omega
+    next_output_idx = 1
+
+    energy0, enstrophy0, palinstrophy0 = vorticity_energy(ops, omega)
+    t_all = [t0]
+    q_all = [q]
+    energy_all = [energy0]
+    enstrophy_all = [enstrophy0]
+    palinstrophy_all = [palinstrophy0]
+    max_vorticity_all = [float(np.max(np.abs(omega)))]
+    cpu_all = [0.0]
+
+    dt_history: list[float] = []
+    gamma_history: list[float] = []
+    gamma_dt_history: list[float] = []
+    damping_factor_history: list[float] = []
+    t_history: list[float] = []
+    error_omega_history: list[float] = []
+    error_r_history: list[float] = []
+    effective_error_history: list[float] = []
+    step_cpu_times: list[float] = []
+    step_accepted_mask: list[bool] = []
+    omega_history: list[Array] = [np.array(omega, copy=True)]
+    denom_cache: Dict[Tuple[float, float], Array] = {}
+
+    t = t0
+    dt = float(np.clip(dt0, opts.dt_min, opts.dt_max))
+    accepted = 0
+    rejected = 0
+    floor_accepted = 0
+    consecutive_rejections = 0
+    attempted = 0
+    previous_normalized_error: Optional[float] = None
+    wall0 = perf_counter()
+    tolerance_time = 1.0e-13 * max(1.0, abs(tf))
+
+    while t < tf - tolerance_time:
+        attempted += 1
+        if attempted > opts.max_steps:
+            raise RuntimeError(
+                f"Exceeded max_steps={opts.max_steps} at t={t:.6e}, dt={dt:.3e}"
+            )
+
+        remaining = tf - t
+        dt_trial = min(dt, remaining)
+        if next_output_idx < n_outputs:
+            output_remaining = float(output_times_arr[next_output_idx] - t)
+            if output_remaining > tolerance_time:
+                if output_remaining < dt_trial:
+                    dt_trial = output_remaining
+        if dt_trial <= 0.0:
+            raise RuntimeError("non-positive trial step encountered")
+
+        gamma_trial = chi_qbar / dt_trial
+        wall_start = perf_counter()
+        omega_new, q_new, _ = step_imex_mrsav_rk(
+            omega,
+            q,
+            t,
+            dt_trial,
+            ops,
+            nu,
+            gamma_trial,
+            tableau,
+            force=force,
+            V=V,
+            dV=dV,
+            newton_options=newton_options,
+            denom_cache=denom_cache,
+            project_mean=project_mean,
+        )
+        step_cpu_times.append(perf_counter() - wall_start)
+
+        has_extrapolation = accepted >= 2
+        at_step_floor = dt_trial <= opts.dt_min * (1.0 + 1.0e-12)
+        if has_extrapolation:
+            omega_ext = _quadratic_extrapolation(
+                omega_history,
+                dt_history + [dt_trial],
+            )
+            error_omega = _extrapolation_error_omega(omega_new, omega_ext, ops)
+            error_r = abs(1.0 - float(q_new))
+            # This controller intentionally uses only the extrapolation
+            # vorticity indicator for acceptance and PI step selection.
+            # error_r remains a diagnostic quantity.
+            accept = error_omega <= opts.tol_omega
+            if not accept and at_step_floor:
+                accept = True
+                floor_accepted += 1
+        else:
+            error_omega = np.nan
+            error_r = np.nan
+            accept = True
+
+        effective_error = (
+            _extrapolation_pi_effective_error(error_omega, opts)
+            if has_extrapolation
+            else np.nan
+        )
+
+        if not accept:
+            rejected += 1
+            consecutive_rejections += 1
+            step_accepted_mask.append(False)
+            if consecutive_rejections > opts.max_rejections:
+                raise RuntimeError(
+                    f"Exceeded max_rejections={opts.max_rejections} at t={t:.6e}, "
+                    f"dt={dt_trial:.3e}, e_omega={error_omega:.3e}, e_r={error_r:.3e}"
+                )
+            dt = _extrapolation_pi_retry_step(error_omega, dt_trial, opts)
+            if print_progress:
+                _print_adaptive_progress(
+                    t, tf, dt_trial, error_omega, accepted, rejected, perf_counter() - wall0
+                )
+            continue
+
+        accepted += 1
+        consecutive_rejections = 0
+        step_accepted_mask.append(True)
+        t_new = t + dt_trial
+        if (
+            next_output_idx < n_outputs
+            and abs(t_new - output_times_arr[next_output_idx]) <= tolerance_time
+        ):
+            t_new = float(output_times_arr[next_output_idx])
+        if abs(t_new - tf) <= tolerance_time:
+            t_new = tf
+
+        omega = omega_new
+        q = float(q_new)
+        t = t_new
+        dt_history.append(float(dt_trial))
+        gamma_history.append(float(gamma_trial))
+        gamma_dt_history.append(float(gamma_trial * dt_trial))
+        damping_factor_history.append(
+            float(np.sqrt(2.0) / (1.0 + eta * gamma_trial * dt_trial))
+        )
+        t_history.append(t)
+        error_omega_history.append(float(error_omega))
+        error_r_history.append(float(error_r))
+        effective_error_history.append(float(effective_error))
+        t_all.append(t)
+        q_all.append(q)
+        energy, enstrophy, palinstrophy = vorticity_energy(ops, omega)
+        energy_all.append(energy)
+        enstrophy_all.append(enstrophy)
+        palinstrophy_all.append(palinstrophy)
+        max_vorticity_all.append(float(np.max(np.abs(omega))))
+        cpu_all.append(perf_counter() - wall0)
+        omega_history.append(np.array(omega, copy=True))
+        if len(omega_history) > 3:
+            omega_history.pop(0)
+
+        while (
+            next_output_idx < n_outputs
+            and abs(t - output_times_arr[next_output_idx]) <= tolerance_time
+        ):
+            t_snapshot[next_output_idx] = t
+            if keep_omega:
+                omega_saved[next_output_idx] = omega
+            next_output_idx += 1
+
+        if has_extrapolation and np.isfinite(error_omega) and not at_step_floor:
+            dt, previous_normalized_error = _extrapolation_pi_step_update(
+                error_omega,
+                previous_normalized_error,
+                dt_trial,
+                opts,
+            )
+        else:
+            dt = float(np.clip(dt0, opts.dt_min, opts.dt_max))
+        if print_progress:
+            _print_adaptive_progress(
+                t, tf, dt_trial, error_omega, accepted, rejected, cpu_all[-1]
+            )
+
+    if next_output_idx != n_outputs:
+        raise RuntimeError(
+            f"adaptive solve ended without landing on all output times: "
+            f"filled {next_output_idx}/{n_outputs}"
+        )
+    if print_progress:
+        print()
+
+    return ExtrapolationPIGammaSolverResult(
+        t=np.asarray(t_all, dtype=np.float64),
+        q=np.asarray(q_all, dtype=np.float64),
+        omega=omega_saved if keep_omega else None,
+        energy=np.asarray(energy_all, dtype=np.float64),
+        enstrophy=np.asarray(enstrophy_all, dtype=np.float64),
+        palinstrophy=np.asarray(palinstrophy_all, dtype=np.float64),
+        max_vorticity=np.asarray(max_vorticity_all, dtype=np.float64),
+        cpu_time=np.asarray(cpu_all, dtype=np.float64),
+        method=tableau.name,
+        initial_dt=float(dt0),
+        qbar=float(opts.qbar),
+        chi_qbar=float(chi_qbar),
+        accepted_steps=accepted,
+        rejected_steps=rejected,
+        floor_accepted_steps=floor_accepted,
+        dt_history=np.asarray(dt_history, dtype=np.float64),
+        gamma_history=np.asarray(gamma_history, dtype=np.float64),
+        gamma_dt_history=np.asarray(gamma_dt_history, dtype=np.float64),
+        damping_factor_history=np.asarray(damping_factor_history, dtype=np.float64),
+        t_history=np.asarray(t_history, dtype=np.float64),
+        error_omega_history=np.asarray(error_omega_history, dtype=np.float64),
+        error_r_history=np.asarray(error_r_history, dtype=np.float64),
+        effective_error_history=np.asarray(effective_error_history, dtype=np.float64),
+        step_cpu_times=np.asarray(step_cpu_times, dtype=np.float64),
+        step_accepted_mask=np.asarray(step_accepted_mask, dtype=bool),
+        t_snapshot=t_snapshot,
+        omega_final=np.array(omega, copy=True),
+        q_final=float(q),
+    )
+
+
 def _print_adaptive_progress(
     t: float, tf: float, dt: float, err: float,
     accepted: int, rejected: int, cpu: float,
@@ -1408,6 +2195,7 @@ def solve_adaptive(
     # --- growing lists for per-step diagnostics ---
     e0, ens0, pal0 = vorticity_energy(ops, omega)
     t_all = [t0]
+    q_all = [q]
     energy_list = [float(e0)]
     enstrophy_list = [float(ens0)]
     palinstrophy_list = [float(pal0)]
@@ -1444,9 +2232,19 @@ def solve_adaptive(
                 f"dt={dt:.3e}"
             )
 
-        # Clamp dt to not overshoot final time.
+        # Clamp dt to not overshoot the final time or the next requested
+        # output time.  Landing exactly on output times avoids comparing a
+        # snapshot at a nearby accepted state with a reference at a different
+        # physical time.
         dt_trial = min(dt, tf - t)
-        if dt_trial < opts.dt_min:
+        landing_output = False
+        if next_output_idx < n_outputs:
+            output_remaining = float(output_times_arr[next_output_idx] - t)
+            if output_remaining > 1.0e-14 * max(1.0, abs(tf)):
+                if output_remaining < dt_trial:
+                    dt_trial = output_remaining
+                    landing_output = True
+        if dt_trial < opts.dt_min and not landing_output:
             raise RuntimeError(
                 f"Step size {dt_trial:.3e} fell below dt_min={opts.dt_min:.3e} "
                 f"at t={t:.6e}"
@@ -1484,6 +2282,9 @@ def solve_adaptive(
             omega = omega_new
             q = q_new
             t += dt_trial
+            if landing_output and next_output_idx < n_outputs:
+                if abs(t - output_times_arr[next_output_idx]) <= 1.0e-12 * max(1.0, abs(tf)):
+                    t = float(output_times_arr[next_output_idx])
             accepted += 1
             consecutive_rejections = 0
             step_accepted.append(True)
@@ -1492,6 +2293,7 @@ def solve_adaptive(
             err_hist.append(err)
             t_hist.append(t)
             t_all.append(t)
+            q_all.append(q)
 
             e_cur, ens_cur, pal_cur = vorticity_energy(ops, omega)
             max_vort_cur = float(np.max(np.abs(omega)))
@@ -1577,6 +2379,7 @@ def solve_adaptive(
 
     return AdaptiveSolverResult(
         t=np.array(t_all, dtype=np.float64),
+        q=np.array(q_all, dtype=np.float64),
         t_snapshot=t_snapshot[:next_output_idx],
         omega=omega_saved[:next_output_idx] if keep_omega else None,
         energy=np.array(energy_list, dtype=np.float64),
@@ -1600,6 +2403,10 @@ def solve_adaptive(
 
 __all__ = [
     "AdaptiveSolverResult",
+    "ExtrapolationAdaptiveOptions",
+    "ExtrapolationAdaptiveSolverResult",
+    "ExtrapolationPIGammaOptions",
+    "ExtrapolationPIGammaSolverResult",
     "HAS_FFTW",
     "IMEXTableau",
     "NewtonInfo",
@@ -1613,6 +2420,8 @@ __all__ = [
     "make_tableau",
     "make_taylor_v",
     "solve_adaptive",
+    "solve_adaptive_extrapolation",
+    "solve_adaptive_extrapolation_pi_gamma",
     "solve_fixed_step",
     "step_imex_mrsav_rk",
     "velocity_from_vorticity",
