@@ -19,6 +19,7 @@ env/
 # Generated experiment data and figures
 data/
 fig/
+logs/
 *.h5
 *.hdf5
 *.csv

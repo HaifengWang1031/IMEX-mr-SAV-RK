@@ -1,5 +1,0 @@
-numpy
-scipy
-pyfftw
-h5py
-matplotlib
