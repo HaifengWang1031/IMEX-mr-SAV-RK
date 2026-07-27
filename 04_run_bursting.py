@@ -43,8 +43,8 @@ parser.add_argument("--tau", type=float, default=0.001,  help="fixed time step s
 # adaptive mode
 parser.add_argument("--tau-min", type=float, default=1e-5, help="min time step (adaptive mode)")
 parser.add_argument("--tau-max", type=float, default=1e-2, help="max time step (adaptive mode)")
-parser.add_argument("--rtol",    type=float, default=1e-4,    help="relative tolerance (adaptive mode)")
-parser.add_argument("--rtol-q",  type=float, default=1e-4,  help="relative tolerance for q (adaptive mode)")
+parser.add_argument("--rtol",    type=float, default=5e-5,    help="relative tolerance (adaptive mode)")
+parser.add_argument("--rtol-q",  type=float, default=1e-2,  help="relative tolerance for q (adaptive mode)")
 
 args = parser.parse_args()
 if args.mode == "adaptive" and args.M not in ADAPTIVE_METHODS:

@@ -10,19 +10,24 @@ conda activate pde
 
 cd "$script_dir"
 
+# Pass shared m, Re, and final time T to all experiments, e.g.
+# ./04_run_bursting.sh --m 4 --Re 50 --T 5000
+# If omitted, 04_run_bursting.py uses the defaults m=3, Re=30, and T=10000.
 echo "Running adaptive SDIRK2_mr_SAV experiment..."
 python 04_run_bursting.py "$@" \
     --mode adaptive \
-    --M SDIRK2_mr_SAV \
-    --m 3 \
-    --Re 30
+    --M SDIRK2_mr_SAV
 
 echo "Running fixed-step SDIRK2_mr_SAV experiment with tau=5e-4..."
 python 04_run_bursting.py "$@" \
     --mode fix \
     --M SDIRK2_mr_SAV \
-    --tau 5e-4 \
-    --m 3 \
-    --Re 30
+    --tau 5e-4
+
+echo "Running fixed-step SDIRK2_mr_SAV experiment with tau=1e-3..."
+python 04_run_bursting.py "$@" \
+    --mode fix \
+    --M SDIRK2_mr_SAV \
+    --tau 1e-3
 
 echo "Both bursting experiments completed."
