@@ -558,7 +558,7 @@ class mrSAV_Vorticity_Stream_Periodic_Solve():
         fomega_1 = self.phi0_L*fomega_n + tau_n*self.phi1_L*((1 + p_n1)*f_N12 + f_fn); fomega_1[0,0] = 0.+0j
         return Omega_2, self.ift(fomega_1).real, q_2
 
-    def mr_SAV_BDF2(self, Omega_s, q_s, tn, tau_s):
+    def mr_SAV_BDF2(self, Omega_s, q_s, tn, tau_s, fN_n=None, fN_nm=None):
         tau_n  = tau_s[-1]
         tau_nm = tau_s[-2]
         rho = tau_n / tau_nm
@@ -576,14 +576,19 @@ class mrSAV_Vorticity_Stream_Periodic_Solve():
         fomega_n  = self.ft(omega_n)
         fomega_nm = self.ft(omega_nm)
 
+        if fN_n is None:
+            fN_n = self.N_hat(omega_n, fomega_n)
+        if fN_nm is None:
+            fN_nm = self._fN_cache if self._fN_cache is not None else self.N_hat(omega_nm, fomega_nm)
+        self._fN_cache = fN_n
+        # BDF2 extrapolates N to t_{n+1}, rather than to the ETD midpoint.
+        fN_2 = (1 + rho)*fN_n - rho*fN_nm
+
         q_n  = q_s[-1]
         q_nm = q_s[-2]
 
         f_n = self.f(self.X[:-1,:-1], self.Y[:-1,:-1], tn + tau_n)
 
-        omega_2 = (1+rho)*omega_n - rho*omega_nm
-        fomega_2 = (1+rho)*fomega_n - rho*fomega_nm
-        fN_2 = self.N_hat(omega_2, fomega_2)
         f_fn = self.ft(f_n)
         fomega_base = phi_L*(c1*fomega_n - c2*fomega_nm + dt*f_fn)
 
