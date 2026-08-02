@@ -10,8 +10,8 @@ conda activate pde
 
 cd "$script_dir"
 
-# Pass shared m, Re, and final time T to all experiments, e.g.
-# ./04_run_bursting.sh --m 4 --Re 50 --T 5000
+# Pass shared m, Re, final time T, and number of grid points N to all experiments, e.g.
+# ./04_run_bursting.sh --m 4 --Re 50 --T 5000 --N 128
 # If omitted, 04_run_bursting.py uses the defaults m=3, Re=30, and T=10000.
 echo "Running adaptive SDIRK2_mr_SAV experiment..."
 python 04_run_bursting.py "$@" \

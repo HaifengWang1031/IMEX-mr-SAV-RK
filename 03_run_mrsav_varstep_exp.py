@@ -85,26 +85,34 @@ def default_tolerance_lists():
 
 def default_fixed_configs():
     return [
-        {
-            "key": "tau_0p004",
-            "tau": 0.004,
-        },
+        # {
+        #     "key": "tau_0p004",
+        #     "tau": 0.004,
+        # },
         {
             "key": "tau_0p002",
             "tau": 0.002,
         },
         {
-            "key": "tau_0p0015",
-            "tau": 0.0015,
+            "key": "tau_0p0016",
+            "tau": 0.0016,
+        },
+        {
+            "key": "tau_0p0014",
+            "tau": 0.0014,
+        },
+        {
+            "key": "tau_0p0012",
+            "tau": 0.0012,
         },
         {
             "key": "tau_0p001",
             "tau": 0.001,
         },
-        {
-            "key": "tau_0p0005",
-            "tau": 0.0005,
-        },
+        # {
+        #     "key": "tau_0p0005",
+        #     "tau": 0.0005,
+        # },
     ]
 
 
@@ -245,7 +253,7 @@ def run_experiment(
     t_period = (0.0, 20.0)
     adaptive_cache_version = 5
     fixed_cache_version = 4
-    ref_tau = 0.00025
+    ref_tau = 0.0002
     force_term = make_force_term(m)
 
     if adaptive_tolerances is None:
