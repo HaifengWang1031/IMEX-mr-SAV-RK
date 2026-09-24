@@ -1,0 +1,14 @@
+{
+  "cases": [
+    {
+      "id": "plain",
+      "parameters": {
+        "scheme": "sdirk2"
+      }
+    },
+    {
+      "id": "sav",
+      "parameters": {}
+    }
+  ]
+}

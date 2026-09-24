@@ -1,9 +1,7 @@
-"""Public API for the periodic IMEX/mr-SAV solvers."""
+"""Public API for the modular Fourier research solver."""
+from .core import State, History, Trial, Assessment, Scheme, AdaptiveAlgorithm, Result, IntegrationError
+from .fourier_ns import FourierNS
+from .integrate import integrate
 
-from .ns_periodic_mrSAV_solver import (
-    mrSAV_Vorticity_Stream_Periodic_Solve,
-)
-
-__all__ = [
-    "mrSAV_Vorticity_Stream_Periodic_Solve",
-]
+__all__ = ["State", "History", "Trial", "Assessment", "Scheme", "AdaptiveAlgorithm",
+           "Result", "IntegrationError", "FourierNS", "integrate"]

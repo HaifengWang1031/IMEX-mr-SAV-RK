@@ -1,0 +1,23 @@
+{
+  "cases": [
+    {
+      "id": "gamma-5",
+      "parameters": {
+        "gamma": 5
+      }
+    },
+    {
+      "id": "gamma-1000",
+      "parameters": {
+        "gamma": 1000
+      }
+    },
+    {
+      "id": "reference",
+      "parameters": {
+        "scheme": "etdrk4",
+        "dt": 0.00025
+      }
+    }
+  ]
+}

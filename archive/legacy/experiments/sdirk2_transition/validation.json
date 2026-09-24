@@ -1,0 +1,1003 @@
+{
+  "case": {
+    "grid": 256,
+    "nu": 0.2,
+    "gamma": 5.0,
+    "amplitude": 1,
+    "force": 1,
+    "force_k": 1,
+    "initial": "trig",
+    "modes": 10,
+    "seed": 0,
+    "final_time": 6.0,
+    "root_selection": "legacy",
+    "threads": 1
+  },
+  "reference_time": {
+    "128": {
+      "coarse_id": "e428dc090bd8f4288d31",
+      "fine_id": "f601b94fc08b57c0edf7",
+      "kind": "reference_step_halving",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "ETDRK4",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 768,
+        "tau": 0.0078125
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "ETDRK4",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 1536,
+        "tau": 0.00390625
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 0.0
+        },
+        {
+          "time": 1.5,
+          "omega_relative": 5.843872743786768e-11
+        },
+        {
+          "time": 3.0,
+          "omega_relative": 2.7002247654815135e-11
+        },
+        {
+          "time": 4.5,
+          "omega_relative": 1.566799504840196e-11
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 5.028392442111713e-12
+        }
+      ]
+    },
+    "256": {
+      "coarse_id": "222b751dbf5c36d62ab1",
+      "fine_id": "8ddb6c70b1de9b21ec46",
+      "kind": "reference_step_halving",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "ETDRK4",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 768,
+        "tau": 0.0078125
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "ETDRK4",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 1536,
+        "tau": 0.00390625
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 0.0
+        },
+        {
+          "time": 1.5,
+          "omega_relative": 5.843879256171472e-11
+        },
+        {
+          "time": 3.0,
+          "omega_relative": 2.7002487549454097e-11
+        },
+        {
+          "time": 4.5,
+          "omega_relative": 1.5668147346464104e-11
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 5.028299904203727e-12
+        }
+      ]
+    }
+  },
+  "spatial": {
+    "reference": {
+      "coarse_id": "f601b94fc08b57c0edf7",
+      "fine_id": "8ddb6c70b1de9b21ec46",
+      "kind": "spatial_refinement",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "ETDRK4",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 1536,
+        "tau": 0.00390625
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "ETDRK4",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 1536,
+        "tau": 0.00390625
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 4.391422689220622e-19
+        },
+        {
+          "time": 1.5,
+          "omega_relative": 3.0675731316175186e-14
+        },
+        {
+          "time": 3.0,
+          "omega_relative": 2.5922831378535726e-14
+        },
+        {
+          "time": 4.5,
+          "omega_relative": 2.5666442617135794e-14
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 3.568402312507056e-14
+        }
+      ]
+    },
+    "IMEX_RK2_75": {
+      "coarse_id": "91380aa979dc0a6ddbd9",
+      "fine_id": "0cbb8ea8ddd22ff3bbeb",
+      "kind": "spatial_refinement",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "IMEX_RK2",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 75,
+        "tau": 0.08
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "IMEX_RK2",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 75,
+        "tau": 0.08
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 4.391422689220622e-19
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 1.213228171962548e-07
+        }
+      ]
+    },
+    "IMEX_RK2_74": {
+      "coarse_id": "fa85b3748ee389ad2abe",
+      "fine_id": "5dc41ba834c470720696",
+      "kind": "spatial_refinement",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "IMEX_RK2",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 74,
+        "tau": 0.08108108108108109
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "IMEX_RK2",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 74,
+        "tau": 0.08108108108108109
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 4.391422689220622e-19
+        },
+        {
+          "time": 3.0,
+          "omega_relative": 1.387408509610587e-15
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 1.8671068632659688e-07
+        }
+      ]
+    },
+    "IMEX_RK2_73": {
+      "coarse_id": "67396e693927f670652a",
+      "fine_id": "a26776f63fbfc48719cb",
+      "kind": "spatial_refinement",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "IMEX_RK2",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 73,
+        "tau": 0.0821917808219178
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "IMEX_RK2",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 73,
+        "tau": 0.0821917808219178
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 4.391422689220622e-19
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 5.099353304621517e-07
+        }
+      ]
+    },
+    "IMEX_RK2_72": {
+      "coarse_id": "6ae2288729822584a83c",
+      "fine_id": "3c665275d51a820bbbf8",
+      "kind": "spatial_refinement",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "IMEX_RK2",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 72,
+        "tau": 0.08333333333333333
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "IMEX_RK2",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 72,
+        "tau": 0.08333333333333333
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 4.391422689220622e-19
+        },
+        {
+          "time": 1.5,
+          "omega_relative": 1.922346465223616e-15
+        },
+        {
+          "time": 3.0,
+          "omega_relative": 1.6718632991697881e-15
+        },
+        {
+          "time": 4.5,
+          "omega_relative": 3.2581300558321303e-13
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 1.4521278884700321e-06
+        }
+      ]
+    },
+    "SDIRK2_mr_SAV_75": {
+      "coarse_id": "58c1b52dcdb4bfc44ef7",
+      "fine_id": "0b327b080c1942a8c468",
+      "kind": "spatial_refinement",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "SDIRK2_mr_SAV",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 75,
+        "tau": 0.08
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "SDIRK2_mr_SAV",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 75,
+        "tau": 0.08
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 4.391422689220622e-19
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 4.8468307750084795e-08
+        }
+      ]
+    },
+    "SDIRK2_mr_SAV_74": {
+      "coarse_id": "23428ceb4926bc920cf1",
+      "fine_id": "7560160a90357b30bc60",
+      "kind": "spatial_refinement",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "SDIRK2_mr_SAV",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 74,
+        "tau": 0.08108108108108109
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "SDIRK2_mr_SAV",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 74,
+        "tau": 0.08108108108108109
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 4.391422689220622e-19
+        },
+        {
+          "time": 3.0,
+          "omega_relative": 1.3182423507825852e-15
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 2.494350715933094e-08
+        }
+      ]
+    },
+    "SDIRK2_mr_SAV_73": {
+      "coarse_id": "c7f51788955f995ce174",
+      "fine_id": "153a1baf5454e2198afb",
+      "kind": "spatial_refinement",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "SDIRK2_mr_SAV",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 73,
+        "tau": 0.0821917808219178
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "SDIRK2_mr_SAV",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 73,
+        "tau": 0.0821917808219178
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 4.391422689220622e-19
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 1.169595612799369e-08
+        }
+      ]
+    },
+    "SDIRK2_mr_SAV_72": {
+      "coarse_id": "9a004f3c7c2d7f9c5e7e",
+      "fine_id": "dcda44b633267637ec48",
+      "kind": "spatial_refinement",
+      "coarse_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 128,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "SDIRK2_mr_SAV",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 72,
+        "tau": 0.08333333333333333
+      },
+      "fine_config": {
+        "blowup_bound_factor": 100.0,
+        "case": {
+          "amplitude": 1,
+          "final_time": 6.0,
+          "force": 1,
+          "force_k": 1,
+          "gamma": 5.0,
+          "grid": 256,
+          "initial": "trig",
+          "modes": 10,
+          "nu": 0.2,
+          "root_selection": "legacy",
+          "seed": 0,
+          "threads": 1
+        },
+        "method": "SDIRK2_mr_SAV",
+        "schema": 1,
+        "source_sha256": {
+          "experiments/sdirk2_transition/run.py": "64351c47e7a54aa0c2926afa7e9b2bc39607fd7e1cdcfa5fd54f33f40e534faf",
+          "solver/ns_periodic_mrSAV_solver.py": "839317b3f13d284b757efdf6323526ba70c39d54bea16fd5b0932dda56e95f60"
+        },
+        "steps": 72,
+        "tau": 0.08333333333333333
+      },
+      "errors": [
+        {
+          "time": 0.0,
+          "omega_relative": 4.391422689220622e-19
+        },
+        {
+          "time": 1.5,
+          "omega_relative": 1.5036052417606546e-15
+        },
+        {
+          "time": 3.0,
+          "omega_relative": 1.2276807984504245e-15
+        },
+        {
+          "time": 4.5,
+          "omega_relative": 4.569405834991591e-13
+        },
+        {
+          "time": 6.0,
+          "omega_relative": 9.857058103703943e-09
+        }
+      ]
+    }
+  },
+  "root_sensitivity": {
+    "75": {
+      "legacy_id": "0b327b080c1942a8c468",
+      "nearest_id": "c5521f6c9ce810c56151",
+      "terminal_relative_difference": 3.7673153114343414e-08
+    },
+    "74": {
+      "legacy_id": "7560160a90357b30bc60",
+      "nearest_id": "b732067efc1c3be459b2",
+      "terminal_relative_difference": 7.601544738914336e-17
+    },
+    "72": {
+      "legacy_id": "dcda44b633267637ec48",
+      "nearest_id": "d0e146ad6de012c9e9df",
+      "terminal_relative_difference": 9.672308628567915e-17
+    },
+    "40": {
+      "legacy_id": "910c61c3e7f219b2264a",
+      "nearest_id": "9f06add770478b293e07",
+      "terminal_relative_difference": 5.336779378197778e-16
+    }
+  },
+  "small_step_orders": {
+    "IMEX_RK2": {
+      "steps": [
+        128,
+        256,
+        512
+      ],
+      "errors": [
+        6.722263694592216e-06,
+        1.675638309773764e-06,
+        4.1795742616815674e-07
+      ],
+      "orders": [
+        2.0042363626964357,
+        2.0032828741241624
+      ]
+    },
+    "SDIRK2_mr_SAV": {
+      "steps": [
+        128,
+        256,
+        512
+      ],
+      "errors": [
+        6.671309810652127e-06,
+        1.6631950200398586e-06,
+        4.148772224811287e-07
+      ],
+      "orders": [
+        2.0040126969637524,
+        2.003200985681069
+      ]
+    }
+  },
+  "sampled_time_errors_at_tau_1_over_12": {
+    "tau": 0.08333333333333333,
+    "steps": 72,
+    "methods": {
+      "IMEX_RK2": {
+        "run_id": "3c665275d51a820bbbf8",
+        "status": "completed",
+        "elapsed_seconds": 2.1630824579915497,
+        "errors": [
+          {
+            "time": 1.5,
+            "omega_relative": 0.00024805562732310504,
+            "omega_absolute": 0.0016379887182964565,
+            "velocity_relative": 0.00010740721462234565,
+            "energy": 19.292351850061756,
+            "enstrophy": 21.802835759359738,
+            "forcing_energy_work": 25.882642774353787
+          },
+          {
+            "time": 3.0,
+            "omega_relative": 0.00012903046545260168,
+            "omega_absolute": 0.00131766189233291,
+            "velocity_relative": 7.067281939443372e-05,
+            "energy": 51.675677040369116,
+            "enstrophy": 52.1438449075324,
+            "forcing_energy_work": 45.01602423472162
+          },
+          {
+            "time": 4.5,
+            "omega_relative": 6.425242098234135e-05,
+            "omega_absolute": 0.0008531183001289576,
+            "velocity_relative": 3.252814043733061e-05,
+            "energy": 88.12141511403604,
+            "enstrophy": 88.14902103094845,
+            "forcing_energy_work": 58.97039070591142
+          },
+          {
+            "time": 6.0,
+            "omega_relative": 0.17428151698484026,
+            "omega_absolute": 2.717305334771251,
+            "velocity_relative": 0.008026510993191311,
+            "energy": 121.5564485072412,
+            "enstrophy": 125.24070651601792,
+            "forcing_energy_work": 69.26683673760036
+          }
+        ]
+      },
+      "SDIRK2_mr_SAV": {
+        "run_id": "dcda44b633267637ec48",
+        "status": "completed",
+        "elapsed_seconds": 2.280115458997898,
+        "errors": [
+          {
+            "time": 1.5,
+            "omega_relative": 0.0002450707099163001,
+            "omega_absolute": 0.001618278377151788,
+            "velocity_relative": 0.00010570146438078138,
+            "energy": 19.292338957504377,
+            "enstrophy": 21.802830832424245,
+            "forcing_energy_work": 25.882620182440668
+          },
+          {
+            "time": 3.0,
+            "omega_relative": 0.00012705270147093153,
+            "omega_absolute": 0.0012974649239538981,
+            "velocity_relative": 6.892109633300815e-05,
+            "energy": 51.67563325428933,
+            "enstrophy": 52.14381528380667,
+            "forcing_energy_work": 45.015999206841336
+          },
+          {
+            "time": 4.5,
+            "omega_relative": 6.357775918892846e-05,
+            "omega_absolute": 0.0008441604069700907,
+            "velocity_relative": 3.197287098382716e-05,
+            "energy": 88.12136575796671,
+            "enstrophy": 88.14897360806799,
+            "forcing_energy_work": 58.97037435697696
+          },
+          {
+            "time": 6.0,
+            "omega_relative": 0.008952558361450327,
+            "omega_absolute": 0.1395835600715823,
+            "velocity_relative": 0.0004314066495574507,
+            "energy": 121.54859738084942,
+            "enstrophy": 121.55853963993474,
+            "forcing_energy_work": 69.26684523940627
+          }
+        ]
+      }
+    }
+  },
+  "large_step_40": {
+    "IMEX_RK2": {
+      "run_id": "aec743e7d60e4c82570c",
+      "status": "solution_blowup",
+      "last_state_time": 4.95,
+      "max_rms_over_forced_bound": 141.48960717571842,
+      "max_abs_q_minus_one": 0.0,
+      "final_error": null
+    },
+    "SDIRK2_mr_SAV": {
+      "run_id": "910c61c3e7f219b2264a",
+      "status": "completed",
+      "last_state_time": 6.0,
+      "max_rms_over_forced_bound": 0.9999999999999999,
+      "max_abs_q_minus_one": 0.8118071589322914,
+      "final_error": {
+        "time": 6.0,
+        "omega_relative": 0.014436283204625961,
+        "omega_absolute": 0.2250829006130979,
+        "velocity_relative": 0.003733977341323671,
+        "energy": 121.54519442203082,
+        "enstrophy": 121.56962935131702,
+        "forcing_energy_work": 69.26593482613042
+      }
+    }
+  },
+  "large_step_56": {
+    "IMEX_RK2": {
+      "run_id": "7d5e137b74ac3876eabd",
+      "status": "solution_blowup",
+      "last_state_time": 5.785714285714286,
+      "max_rms_over_forced_bound": 485.51459243898665,
+      "max_abs_q_minus_one": 0.0,
+      "final_error": null
+    },
+    "SDIRK2_mr_SAV": {
+      "run_id": "a1be97b08966f447f66a",
+      "status": "completed",
+      "last_state_time": 6.0,
+      "max_rms_over_forced_bound": 0.9999999999999999,
+      "max_abs_q_minus_one": 0.8620267525278601,
+      "final_error": {
+        "time": 6.0,
+        "omega_relative": 0.012382122026953454,
+        "omega_absolute": 0.1930555048046541,
+        "velocity_relative": 0.001234322911506443,
+        "energy": 121.5496353662461,
+        "enstrophy": 121.56849019571294,
+        "forcing_energy_work": 69.2672201551549
+      }
+    }
+  }
+}

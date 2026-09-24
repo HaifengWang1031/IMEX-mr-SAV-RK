@@ -21,11 +21,22 @@ data/
 fig/
 figures/
 logs/
+runs/
+reports/
+output/
+tmp/
+*.log
+*.npy
+*.npz
 *.h5
 *.hdf5
 *.csv
 *.pdf
 *.png
+
+# Small, intentional numerical regression fixtures belong in version control.
+!/tests/fixtures/*.npy
+!/tests/fixtures/*.npz
 
 # Notebooks are exploratory artifacts in this repo.
 .ipynb_checkpoints/

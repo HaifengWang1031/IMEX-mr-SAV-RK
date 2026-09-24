@@ -1,0 +1,31 @@
+\begin{table}
+\centering
+\caption{Absolute vorticity $L^2$ errors and adjacent-step observed rates for $\gamma=1000$, $\nu=0.01$, $N=256$, and forcing $1\cos(1x)$. ETDRK4 uses $\tau_{\rm ref}=6/6144$. Rates are raw observed slopes; non-asymptotic values do not imply convergence order. \texttt{stopped} denotes a run stopped before the observation time, not a fabricated NaN.}
+\label{tab:absolute-errors-gamma1000}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{r cc cc cc cc cc cc cc cc }
+\toprule
+& \multicolumn{4}{c}{$t=1.5$} & \multicolumn{4}{c}{$t=3$} & \multicolumn{4}{c}{$t=4.5$} & \multicolumn{4}{c}{$t=6$}\\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(lr){10-13}\cmidrule(lr){14-17}
+& \multicolumn{2}{c}{SDIRK2} & \multicolumn{2}{c}{SDIRK2-mr-SAV} & \multicolumn{2}{c}{SDIRK2} & \multicolumn{2}{c}{SDIRK2-mr-SAV} & \multicolumn{2}{c}{SDIRK2} & \multicolumn{2}{c}{SDIRK2-mr-SAV} & \multicolumn{2}{c}{SDIRK2} & \multicolumn{2}{c}{SDIRK2-mr-SAV}\\
+$\tau$ & Error & Rate & Error & Rate & Error & Rate & Error & Rate & Error & Rate & Error & Rate & Error & Rate & Error & Rate\\
+\midrule
+0.150000000 & $7.5376\times10^{5}$ & -- & $2.9979\times10^{0}$ & -- & \texttt{stopped} & -- & $3.8584\times10^{0}$ & -- & \texttt{stopped} & -- & $5.3020\times10^{0}$ & -- & \texttt{stopped} & -- & $8.8673\times10^{0}$ & -- \\
+0.107142857 & \texttt{stopped} & -- & $2.1388\times10^{0}$ & 1.00 & \texttt{stopped} & -- & $3.3767\times10^{0}$ & 0.40 & \texttt{stopped} & -- & $5.1336\times10^{0}$ & 0.10 & \texttt{stopped} & -- & $8.7004\times10^{0}$ & 0.06 \\
+0.093750000 & \texttt{stopped} & -- & $1.8373\times10^{0}$ & 1.14 & \texttt{stopped} & -- & $3.2701\times10^{0}$ & 0.24 & \texttt{stopped} & -- & $5.0986\times10^{0}$ & 0.05 & \texttt{stopped} & -- & $8.6349\times10^{0}$ & 0.06 \\
+0.088235294 & \texttt{stopped} & -- & $1.7327\times10^{0}$ & 0.97 & \texttt{stopped} & -- & $3.2507\times10^{0}$ & 0.10 & \texttt{stopped} & -- & $5.0790\times10^{0}$ & 0.06 & \texttt{stopped} & -- & $8.5899\times10^{0}$ & 0.09 \\
+0.083333333 & \texttt{stopped} & -- & $1.6558\times10^{0}$ & 0.79 & \texttt{stopped} & -- & $3.2296\times10^{0}$ & 0.11 & \texttt{stopped} & -- & $5.0523\times10^{0}$ & 0.09 & \texttt{stopped} & -- & $8.5323\times10^{0}$ & 0.12 \\
+0.078947368 & \texttt{stopped} & -- & $1.5950\times10^{0}$ & 0.69 & \texttt{stopped} & -- & $3.2031\times10^{0}$ & 0.15 & \texttt{stopped} & -- & $5.0214\times10^{0}$ & 0.11 & \texttt{stopped} & -- & $8.4673\times10^{0}$ & 0.14 \\
+0.075000000 & \texttt{stopped} & -- & $1.5404\times10^{0}$ & 0.68 & \texttt{stopped} & -- & $3.1760\times10^{0}$ & 0.17 & \texttt{stopped} & -- & $4.9905\times10^{0}$ & 0.12 & \texttt{stopped} & -- & $8.3997\times10^{0}$ & 0.16 \\
+0.071428571 & \texttt{stopped} & -- & $1.4890\times10^{0}$ & 0.70 & \texttt{stopped} & -- & $3.1507\times10^{0}$ & 0.16 & \texttt{stopped} & -- & $4.9568\times10^{0}$ & 0.14 & \texttt{stopped} & -- & $8.3255\times10^{0}$ & 0.18 \\
+0.068181818 & \texttt{stopped} & -- & $1.4406\times10^{0}$ & 0.71 & \texttt{stopped} & -- & $3.1195\times10^{0}$ & 0.21 & \texttt{stopped} & -- & $4.9204\times10^{0}$ & 0.16 & \texttt{stopped} & -- & $8.2484\times10^{0}$ & 0.20 \\
+0.062500000 & \texttt{stopped} & -- & $1.3357\times10^{0}$ & 0.87 & \texttt{stopped} & -- & $3.0731\times10^{0}$ & 0.17 & \texttt{stopped} & -- & $4.8606\times10^{0}$ & 0.14 & \texttt{stopped} & -- & $8.1497\times10^{0}$ & 0.14 \\
+0.046875000 & \texttt{stopped} & -- & $9.6615\times10^{-1}$ & 1.13 & \texttt{stopped} & -- & $2.9806\times10^{0}$ & 0.11 & \texttt{stopped} & -- & $4.7447\times10^{0}$ & 0.08 & \texttt{stopped} & -- & $7.9089\times10^{0}$ & 0.10 \\
+0.023437500 & \texttt{stopped} & -- & $9.6837\times10^{-1}$ & -0.00 & \texttt{stopped} & -- & $2.6057\times10^{0}$ & 0.19 & \texttt{stopped} & -- & $4.5104\times10^{0}$ & 0.07 & \texttt{stopped} & -- & $7.3683\times10^{0}$ & 0.10 \\
+0.011718750 & $1.4920\times10^{-3}$ & -- & $1.4920\times10^{-3}$ & 9.34 & \texttt{stopped} & -- & $1.4737\times10^{0}$ & 0.82 & \texttt{stopped} & -- & $3.6054\times10^{0}$ & 0.32 & \texttt{stopped} & -- & $6.2820\times10^{0}$ & 0.23 \\
+0.005859375 & $3.7240\times10^{-4}$ & 2.00 & $3.7240\times10^{-4}$ & 2.00 & $1.4639\times10^{-3}$ & -- & $1.4639\times10^{-3}$ & 9.98 & \texttt{stopped} & -- & $1.4130\times10^{0}$ & 1.35 & \texttt{stopped} & -- & $3.3495\times10^{0}$ & 0.91 \\
+0.002929688 & $9.3035\times10^{-5}$ & 2.00 & $9.3035\times10^{-5}$ & 2.00 & $3.6566\times10^{-4}$ & 2.00 & $3.6566\times10^{-4}$ & 2.00 & $7.4247\times10^{-4}$ & -- & $7.4247\times10^{-4}$ & 10.89 & \texttt{stopped} & -- & $7.4894\times10^{-1}$ & 2.16 \\
+\bottomrule
+\end{tabular}}
+\end{table}

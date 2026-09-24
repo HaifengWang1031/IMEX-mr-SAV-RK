@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "id": "reference",
+      "parameters": {
+        "scheme": "etdrk4",
+        "dt": 0.00025
+      }
+    },
+    {
+      "id": "plain",
+      "parameters": {
+        "scheme": "sdirk2"
+      }
+    },
+    {
+      "id": "sav",
+      "parameters": {}
+    },
+    {
+      "id": "refined",
+      "parameters": {
+        "dt": 0.0005
+      }
+    }
+  ]
+}

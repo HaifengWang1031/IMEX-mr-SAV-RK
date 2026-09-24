@@ -1,0 +1,14 @@
+{
+  "cases": [
+    {
+      "id": "grid32",
+      "parameters": {}
+    },
+    {
+      "id": "grid48",
+      "parameters": {
+        "N": 48
+      }
+    }
+  ]
+}

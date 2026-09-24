@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "id": "fixed",
+      "parameters": {}
+    },
+    {
+      "id": "adaptive",
+      "parameters": {
+        "mode": "adaptive"
+      }
+    },
+    {
+      "id": "plain",
+      "parameters": {
+        "scheme": "sdirk2"
+      }
+    }
+  ]
+}

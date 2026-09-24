@@ -1,0 +1,46 @@
+\begin{table}
+\centering
+\caption{Vorticity $L^2$ errors and observed convergence rates at $T=1$, $T=1.5$, $T=2$.
+The reference solution is computed by ETDRK4 with
+$\tau_{\rm ref}=0.1\times2^{-8}$. The time steps are given by
+$\tau=0.1\times2^{-k}$, with additional levels $k=2.2,2.4,2.6,2.8$.}
+\label{tab:sdirk2-fixed-convergence}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{l cc cc cc cc cc cc}
+\toprule
+& \multicolumn{4}{c}{$T=1$} & \multicolumn{4}{c}{$T=1.5$} & \multicolumn{4}{c}{$T=2$}\\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(lr){10-13}
+& \multicolumn{2}{c}{SDIRK2} & \multicolumn{2}{c}{SDIRK2-mr-SAV} & \multicolumn{2}{c}{SDIRK2} & \multicolumn{2}{c}{SDIRK2-mr-SAV} & \multicolumn{2}{c}{SDIRK2} & \multicolumn{2}{c}{SDIRK2-mr-SAV}\\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}\cmidrule(lr){10-11}\cmidrule(lr){12-13}
+$k$ & Error & Rate & Error & Rate & Error & Rate & Error & Rate & Error & Rate & Error & Rate\\
+\midrule
+1 & \texttt{NaN} & -- & $1.2590\times10^{0}$ & -- & \texttt{NaN} & -- & $2.1741\times10^{0}$ & -- & \texttt{NaN} & -- & $3.0417\times10^{0}$ & -- \\
+2 & \texttt{NaN} & -- & $9.4782\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.8569\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.7079\times10^{0}$ & \texttt{pre-asymp} \\
+2.1 & \texttt{NaN} & -- & $9.0980\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.8104\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.6556\times10^{0}$ & \texttt{pre-asymp} \\
+2.2 & \texttt{NaN} & -- & $8.7255\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.7660\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.6074\times10^{0}$ & \texttt{pre-asymp} \\
+2.3 & \texttt{NaN} & -- & $8.2444\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.7091\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.5452\times10^{0}$ & \texttt{pre-asymp} \\
+2.4 & \texttt{NaN} & -- & $7.7214\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.6496\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.4820\times10^{0}$ & \texttt{pre-asymp} \\
+2.5 & \texttt{NaN} & -- & $7.1515\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.5847\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.4135\times10^{0}$ & \texttt{pre-asymp} \\
+2.6 & \texttt{NaN} & -- & $6.5293\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.5134\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.3385\times10^{0}$ & \texttt{pre-asymp} \\
+2.7 & \texttt{NaN} & -- & $5.8725\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.4365\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.2578\times10^{0}$ & \texttt{pre-asymp} \\
+2.8 & \texttt{NaN} & -- & $5.1220\times10^{-1}$ & 1.97 & \texttt{NaN} & -- & $1.3508\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.1700\times10^{0}$ & \texttt{pre-asymp} \\
+2.9 & \texttt{NaN} & -- & $4.3265\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.2587\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $2.0761\times10^{0}$ & \texttt{pre-asymp} \\
+3 & $2.2300\times10^{5}$ & -- & $3.5257\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.1610\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.9778\times10^{0}$ & \texttt{pre-asymp} \\
+3.1 & $3.1927\times10^{1}$ & \texttt{pre-asymp} & $2.9360\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.0497\times10^{0}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.8661\times10^{0}$ & \texttt{pre-asymp} \\
+3.2 & $9.0982\times10^{-1}$ & \texttt{pre-asymp} & $4.1128\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $9.3024\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.7482\times10^{0}$ & \texttt{pre-asymp} \\
+3.3 & $2.4902\times10^{-2}$ & \texttt{pre-asymp} & $2.4877\times10^{-2}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $7.9834\times10^{-1}$ & 2.21 & \texttt{NaN} & -- & $1.6184\times10^{0}$ & \texttt{pre-asymp} \\
+3.4 & $1.8893\times10^{-3}$ & \texttt{pre-asymp} & $1.8826\times10^{-3}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $6.5806\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.4803\times10^{0}$ & \texttt{pre-asymp} \\
+3.5 & $1.3936\times10^{-3}$ & \texttt{pre-asymp} & $1.3871\times10^{-3}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $5.1399\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.3336\times10^{0}$ & \texttt{pre-asymp} \\
+3.6 & $1.2036\times10^{-3}$ & 2.11 & $1.1979\times10^{-3}$ & 2.12 & $7.4116\times10^{1}$ & -- & $3.4967\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $1.1700\times10^{0}$ & 1.89 \\
+3.7 & $1.0478\times10^{-3}$ & 2.00 & $1.0428\times10^{-3}$ & 2.00 & $5.8431\times10^{-1}$ & \texttt{pre-asymp} & $4.0027\times10^{-1}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $9.9327\times10^{-1}$ & \texttt{pre-asymp} \\
+3.8 & $9.0689\times10^{-4}$ & 2.08 & $9.0256\times10^{-4}$ & 2.08 & $5.7399\times10^{-3}$ & \texttt{pre-asymp} & $5.7232\times10^{-3}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $7.8681\times10^{-1}$ & \texttt{pre-asymp} \\
+3.9 & $7.8817\times10^{-4}$ & 2.02 & $7.8440\times10^{-4}$ & 2.02 & $1.8068\times10^{-3}$ & \texttt{pre-asymp} & $1.7867\times10^{-3}$ & \texttt{pre-asymp} & \texttt{NaN} & -- & $5.7401\times10^{-1}$ & \texttt{pre-asymp} \\
+4 & $6.8795\times10^{-4}$ & 1.96 & $6.8467\times10^{-4}$ & 1.96 & $1.5786\times10^{-3}$ & 1.95 & $1.5611\times10^{-3}$ & 1.95 & $8.0532\times10^{0}$ & -- & $3.2438\times10^{-1}$ & \texttt{pre-asymp} \\
+5 & $1.7094\times10^{-4}$ & 2.01 & $1.7012\times10^{-4}$ & 2.01 & $3.9176\times10^{-4}$ & 2.01 & $3.8740\times10^{-4}$ & 2.01 & $8.8183\times10^{-4}$ & \texttt{pre-asymp} & $8.6539\times10^{-4}$ & \texttt{pre-asymp} \\
+6 & $4.2702\times10^{-5}$ & 2.00 & $4.2498\times10^{-5}$ & 2.00 & $9.7835\times10^{-5}$ & 2.00 & $9.6748\times10^{-5}$ & 2.00 & $2.2008\times10^{-4}$ & 2.00 & $2.1599\times10^{-4}$ & 2.00 \\
+7 & $1.0674\times10^{-5}$ & 2.00 & $1.0624\times10^{-5}$ & 2.00 & $2.4453\times10^{-5}$ & 2.00 & $2.4182\times10^{-5}$ & 2.00 & $5.5001\times10^{-5}$ & 2.00 & $5.3981\times10^{-5}$ & 2.00 \\
+8 & $2.6686\times10^{-6}$ & 2.00 & $2.6559\times10^{-6}$ & 2.00 & $6.1130\times10^{-6}$ & 2.00 & $6.0452\times10^{-6}$ & 2.00 & $1.3749\times10^{-5}$ & 2.00 & $1.3494\times10^{-5}$ & 2.00 \\
+\bottomrule
+\end{tabular}}
+\end{table}

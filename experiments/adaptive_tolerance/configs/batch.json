@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "id": "tol-0",
+      "parameters": {
+        "adaptive": {
+          "rtol": 0.001
+        }
+      }
+    },
+    {
+      "id": "tol-1",
+      "parameters": {
+        "adaptive": {
+          "rtol": 0.0001
+        }
+      }
+    }
+  ]
+}

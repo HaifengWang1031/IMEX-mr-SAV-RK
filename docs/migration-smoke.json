@@ -1,0 +1,54 @@
+{
+  "date": "2026-09-24",
+  "scope": "Short workflow smoke only; no production or paper-result reproduction",
+  "experiments": [
+    {
+      "experiment": "bursting",
+      "batch": "/tmp/imex-migration-verified/runs/bursting/batches/20260924T145439-f5a47da5",
+      "report": "/tmp/imex-migration-verified/reports/bursting/20260924T145439-935524ea",
+      "status": "passed"
+    },
+    {
+      "experiment": "convergence",
+      "batch": "/tmp/imex-migration-verified/runs/convergence/batches/20260924T145440-0b3455f0",
+      "report": "/tmp/imex-migration-verified/reports/convergence/20260924T145440-8bdd93ee",
+      "status": "passed"
+    },
+    {
+      "experiment": "mean_reverting",
+      "batch": "/tmp/imex-migration-verified/runs/mean_reverting/batches/20260924T145440-e502791a",
+      "report": "/tmp/imex-migration-verified/reports/mean_reverting/20260924T145440-70f54c93",
+      "status": "passed"
+    },
+    {
+      "experiment": "adaptive_tolerance",
+      "batch": "/tmp/imex-migration-verified/runs/adaptive_tolerance/batches/20260924T145440-08562e70",
+      "report": "/tmp/imex-migration-verified/reports/adaptive_tolerance/20260924T145440-23bcea47",
+      "status": "passed"
+    },
+    {
+      "experiment": "shearflow",
+      "batch": "/tmp/imex-migration-verified/runs/shearflow/batches/20260924T145440-ad7a44b3",
+      "report": "/tmp/imex-migration-verified/reports/shearflow/20260924T145440-1c6357e6",
+      "status": "passed"
+    },
+    {
+      "experiment": "spatial_spectrum",
+      "batch": "/tmp/imex-migration-verified/runs/spatial_spectrum/batches/20260924T145441-10587081",
+      "report": "/tmp/imex-migration-verified/reports/spatial_spectrum/20260924T145441-e4177041",
+      "status": "passed"
+    },
+    {
+      "experiment": "sdirk2_transition",
+      "batch": "/tmp/imex-migration-verified/runs/sdirk2_transition/batches/20260924T145441-c917e032",
+      "report": "/tmp/imex-migration-verified/reports/sdirk2_transition/20260924T145441-d13d0c23",
+      "status": "passed"
+    }
+  ],
+  "unit_tests_passed": 32,
+  "legacy_format_pairs": 9,
+  "archive_files": 64,
+  "archive_sha256_verified": true,
+  "cli_show_config_checked": 7,
+  "new_notebooks_syntax_checked": 7
+}
